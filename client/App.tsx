@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useRunnerEngine } from './hooks/useRunnerEngine';
+import { useGame } from './game/useGame';
 import { useInputControls } from './hooks/useInputControls';
 import { HUDOverlay } from './components/HUDOverlay';
 import { PauseSheet } from './components/PauseSheet';
@@ -52,12 +52,7 @@ export function App() {
   const [dailyConfig, setDailyConfig] = useState<DailySeedConfig | null>(null);
   const [lastSubmission, setLastSubmission] = useState<RunSubmissionPayload | null>(null);
   const [validationStatus, setValidationStatus] = useState<{ verified: boolean; reason: string; rank?: number } | null>(null);
-  const [activePilotsCount, setActivePilotsCount] = useState<number>(1);
   const [isServerConnected, setIsServerConnected] = useState<boolean>(false);
-  const [milestoneNotice, setMilestoneNotice] = useState<string | null>(null);
-
-  // WebSocket for live ghost relay
-  const wsRef = useRef<WebSocket | null>(null);
 
   // Fetch Daily Seed Config from Backend on mount with retry
   useEffect(() => {
@@ -95,76 +90,21 @@ export function App() {
     };
   }, []);
 
-  // Connect WebSocket with Auto-Reconnect
+  // Server status for the header badge (the game is fully playable offline)
   useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let isDisposed = false;
-
-    const connectWs = () => {
-      if (isDisposed) return;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-      try {
-        ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (isDisposed) return;
-          setIsServerConnected(true);
-          ws?.send(JSON.stringify({ type: 'join', playerName: 'PILOT-01', seed: initialUrlSeed }));
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'pilot_count') {
-              setActivePilotsCount(data.count);
-            } else if (data.type === 'milestone') {
-              setMilestoneNotice(data.message);
-              setTimeout(() => setMilestoneNotice(null), 4000);
-            }
-          } catch {
-            // Ignore malformed payloads
-          }
-        };
-
-        ws.onclose = () => {
-          if (isDisposed) return;
-          setIsServerConnected(false);
-          reconnectTimer = setTimeout(connectWs, 2500);
-        };
-
-        ws.onerror = () => {
-          ws?.close();
-        };
-      } catch {
-        if (!isDisposed) {
-          setIsServerConnected(false);
-          reconnectTimer = setTimeout(connectWs, 2500);
-        }
-      }
+    let isMounted = true;
+    const ping = () => {
+      fetch('/api/health')
+        .then((res) => isMounted && setIsServerConnected(res.ok))
+        .catch(() => isMounted && setIsServerConnected(false));
     };
-
-    connectWs();
-
+    ping();
+    const timer = setInterval(ping, 10000);
     return () => {
-      isDisposed = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws) {
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.onclose = null;
-        try {
-          ws.close();
-        } catch {
-          // Ignore close errors during component unmount
-        }
-      }
+      isMounted = false;
+      clearInterval(timer);
     };
-  }, [initialUrlSeed]);
+  }, []);
 
   // Handle Game Over Telemetry Submission to Backend Server
   const handleGameOverSubmission = (payload: RunSubmissionPayload) => {
@@ -206,7 +146,7 @@ export function App() {
     handleSlide,
     triggerOverdrive,
     loadGhostTelemetry,
-  } = useRunnerEngine(canvasRef, initialUrlSeed, settings, handleGameOverSubmission);
+  } = useGame(canvasRef, initialUrlSeed, settings, handleGameOverSubmission);
 
   // Setup Universal Controls (Keyboard, Mobile Swipe, Gamepad)
   useInputControls(
@@ -324,7 +264,7 @@ export function App() {
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-surface-container-high rounded-full border border-white/5 font-mono text-xs">
               <Radio className={`w-3.5 h-3.5 ${isServerConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
               <span className="text-gray-300 font-bold">
-                {isServerConnected ? `${activePilotsCount} PILOTS ON TRACK` : 'SYNCING SERVER...'}
+                {isServerConnected ? 'SERVER ONLINE' : 'OFFLINE MODE'}
               </span>
             </div>
 
@@ -376,7 +316,7 @@ export function App() {
               ghostDeltaMeters={ghostDeltaMeters}
               activeBiome={activeBiome}
               isAudioMuted={isAudioMuted}
-              activePilotsCount={activePilotsCount}
+              activePilotsCount={1}
               onToggleAudio={() => setIsAudioMuted(!isAudioMuted)}
               onPauseToggle={() => {
                 if (gameState.status === 'RUNNING') pauseGame();
@@ -423,13 +363,6 @@ export function App() {
             </div>
           )}
 
-          {/* Real-time Milestone Toast Notification */}
-          {milestoneNotice && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 glass-panel-glow px-5 py-2.5 rounded-full flex items-center gap-2 animate-in slide-in-from-top duration-300">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              <span className="font-mono text-xs font-bold text-cyan-300">{milestoneNotice}</span>
-            </div>
-          )}
         </div>
       </main>
 

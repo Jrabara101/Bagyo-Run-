@@ -44,6 +44,37 @@ export interface PlayerPhysicsState {
   invincibleTimerMs: number;
 }
 
+// BAYANIHAN triggers the current overdrive burst; it is renamed with the Phase 2 rules.
+export type Action = 'LEFT' | 'RIGHT' | 'JUMP' | 'SLIDE' | 'BAYANIHAN';
+
+/** One player input, stamped with the tick it is applied at (before that tick's physics). */
+export interface InputEvent {
+  tick: number;
+  action: Action;
+}
+
+export type SimEvent =
+  | { type: 'LANE_CHANGED'; lane: LaneIndex }
+  | { type: 'JUMP_REQUESTED' }
+  | { type: 'SLIDE_STARTED' }
+  | { type: 'OVERDRIVE_STARTED' }
+  | { type: 'ITEM_COLLECTED'; itemId: CollectibleEntity['type']; goBag: boolean }
+  | { type: 'NEAR_MISS'; combo: number }
+  | { type: 'SHIELD_ABSORBED'; hazardId: string }
+  | { type: 'CRASHED'; hazardId: string; cause: string };
+
+export interface RunResult {
+  seed: string;
+  score: number;
+  distance: number;
+  coins: number;
+  nearMisses: number;
+  maxCombo: number;
+  ticks: number;
+  crashed: boolean;
+  causeOfDeath?: string;
+}
+
 export interface EndlessRunnerGameState {
   status: 'IDLE' | 'COUNTDOWN' | 'RUNNING' | 'PAUSED' | 'CRASHED';
   seed: string;
@@ -77,6 +108,9 @@ export interface RunSubmissionPayload {
   durationMs: number;
   causeOfDeath?: string;
   inputTelemetry: TelemetryPoint[];
+  /** Tick-stamped inputs; with the seed this reproduces the run exactly. */
+  inputLog: InputEvent[];
+  ticks: number;
 }
 
 export interface LeaderboardRecord {

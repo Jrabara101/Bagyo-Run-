@@ -36,39 +36,7 @@ export default defineConfig({
           });
         },
       },
-      '/ws': {
-        target: `ws://127.0.0.1:${BACKEND_PORT}`,
-        ws: true,
-        rewriteWsOrigin: true,
-        configure: (proxy) => {
-          proxy.on('error', (err: any, _req, socket) => {
-            // Guard against socket write errors on dead/aborted sockets
-            if (socket && 'destroyed' in socket) {
-              try {
-                if (!socket.destroyed) {
-                  socket.destroy();
-                }
-              } catch {
-                // Ignore destruction errors
-              }
-            }
-          });
-          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
-            socket.on('error', (err: any) => {
-              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) {
-                return;
-              }
-            });
-          });
-          proxy.on('open', (proxySocket) => {
-            proxySocket.on('error', (err: any) => {
-              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) {
-                return;
-              }
-            });
-          });
-        },
-      },
+      // /ws (live relay) is parked until Phase 2; the client does not connect to it.
     },
   },
 });

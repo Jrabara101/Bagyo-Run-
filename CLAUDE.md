@@ -49,6 +49,9 @@ npm run build      # production build
 ## Status
 
 - Phase 0 (setup and restructure) — done 2026-10-14.
-- Next: Phase 1 — extract `GameSimulation` from `client/hooks/useRunnerEngine.ts`, record inputs
-  by tick, add a determinism test. Gameplay must stay identical.
+- Phase 1 (sim extraction) — done 2026-10-14. Rules in `shared/sim/simulation.ts`, loop in
+  `client/game/GameController.ts`, React bridge `client/game/useGame.ts`. Runs submit `inputLog`
+  + `ticks`; `shared/sim/replay.ts` reproduces them. Server still verifies with `antiCheat.ts`
+  (legacy telemetry) until Phase 6. `/ws` relay is disconnected on the client until Phase 2.
+- Next: Phase 2 — course with areas, signals, finish, hearts, Go-Bag, scoring.
 - The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

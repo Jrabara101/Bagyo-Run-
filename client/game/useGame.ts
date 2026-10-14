@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GameSettings, RunSubmissionPayload, TelemetryPoint } from '../../shared/sim/types';
+import { GameSettings, RunResult, RunSubmissionPayload, TelemetryPoint } from '../../shared/sim/types';
 import { soundEngine } from '../engine/audio';
 import { GameController, HudSnapshot, INITIAL_HUD } from './GameController';
 
@@ -8,7 +8,7 @@ export function useGame(
   canvasRef: React.RefObject<HTMLCanvasElement>,
   initialSeed: string,
   settings: GameSettings,
-  onGameOver?: (payload: RunSubmissionPayload) => void
+  onGameOver?: (result: RunResult, submission: RunSubmissionPayload) => void
 ) {
   const [hud, setHud] = useState<HudSnapshot>(() => INITIAL_HUD(initialSeed));
   const controllerRef = useRef<GameController | null>(null);
@@ -21,7 +21,7 @@ export function useGame(
     if (!canvasRef.current) return;
     const controller = new GameController(canvasRef.current, initialSeed, {
       onHud: setHud,
-      onGameOver: (payload) => onGameOverRef.current?.(payload),
+      onGameOver: (result, submission) => onGameOverRef.current?.(result, submission),
     });
     controllerRef.current = controller;
     controller.start();
@@ -61,7 +61,6 @@ export function useGame(
   return {
     gameState: hud.state,
     ghostDeltaMeters: hud.ghostDeltaMeters,
-    activeBiome: hud.biome,
     startGame,
     pauseGame,
     resumeGame,

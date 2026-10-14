@@ -1,5 +1,8 @@
 import { TrackChunk, ObstacleEntity, CollectibleEntity, PlayerPhysicsState, LaneIndex } from '../../shared/sim/types';
-import { LANE_X_POSITIONS } from '../../shared/sim/player';
+import { LANE_X_POSITIONS } from '../../shared/sim/constants';
+
+/** Placeholder palettes from the original game; Phase 4 replaces them with the four areas. */
+export type RenderBiome = 'neon_city' | 'sky_bridge' | 'magma_vault';
 
 export interface RenderParticle {
   x: number;
@@ -130,7 +133,7 @@ export class CanvasRenderer {
     player: PlayerPhysicsState,
     playerZ: number,
     chunks: TrackChunk[],
-    biome: 'neon_city' | 'sky_bridge' | 'magma_vault',
+    biome: RenderBiome,
     isOverdrive: boolean,
     ghostZ: number | null,
     ghostLane: LaneIndex | null,
@@ -186,7 +189,7 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  private renderHorizon(biome: 'neon_city' | 'sky_bridge' | 'magma_vault', isOverdrive: boolean) {
+  private renderHorizon(biome: RenderBiome, isOverdrive: boolean) {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ctx = this.ctx;
@@ -285,7 +288,7 @@ export class CanvasRenderer {
     ctx.stroke();
   }
 
-  private renderTrack(playerZ: number, biome: 'neon_city' | 'sky_bridge' | 'magma_vault', isOverdrive: boolean) {
+  private renderTrack(playerZ: number, biome: RenderBiome, isOverdrive: boolean) {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ctx = this.ctx;
@@ -384,7 +387,7 @@ export class CanvasRenderer {
     ctx.shadowBlur = 0;
   }
 
-  private renderEntities(chunks: TrackChunk[], playerZ: number, biome: 'neon_city' | 'sky_bridge' | 'magma_vault') {
+  private renderEntities(chunks: TrackChunk[], playerZ: number, biome: RenderBiome) {
     const ctx = this.ctx;
 
     // Collect all visible entities sorted from furthest to closest (painter's algorithm)
@@ -522,9 +525,9 @@ export class CanvasRenderer {
     const proj = this.project(laneX, col.yOffset, zRel);
     if (!proj.visible) return;
 
-    const size = (col.type === 'coin' ? 24 : 32) * proj.scale;
+    const size = (col.type === 'supply' ? 24 : 32) * proj.scale;
 
-    if (col.type === 'coin') {
+    if (col.type === 'supply') {
       // Rotating Golden Ring
       ctx.shadowBlur = 14 * proj.scale;
       ctx.shadowColor = '#f7be1d';
@@ -544,15 +547,15 @@ export class CanvasRenderer {
       // Power-up capsule
       let color = '#4cd7f6';
       let icon = '⚡';
-      if (col.type === 'shield') {
+      if (col.type === 'life_vest') {
         color = '#ae05c6';
         icon = '🛡';
-      } else if (col.type === 'coin_magnet') {
+      } else if (col.type === 'tanod_whistle') {
         color = '#f7be1d';
         icon = '🧲';
-      } else if (col.type === 'multiplier_2x') {
+      } else if (col.type === 'gobag') {
         color = '#4cd7f6';
-        icon = '2X';
+        icon = 'GO';
       } else {
         color = '#fbabff';
         icon = '🚀';
@@ -619,6 +622,11 @@ export class CanvasRenderer {
     const craftHeight = (isSliding ? 34 : 72) * scale;
 
     ctx.save();
+
+    // Blink while invulnerable after a hit
+    if (player.invincibleTimerMs > 0 && Math.floor(player.invincibleTimerMs / 100) % 2 === 0) {
+      ctx.globalAlpha = 0.35;
+    }
 
     // 1. Ground Plasma Shadow / Underglow
     const shadowProj = this.project(player.currentX, 0, 2.8);

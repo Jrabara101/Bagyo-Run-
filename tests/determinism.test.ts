@@ -4,39 +4,10 @@ import { join } from 'node:path';
 import { GameSimulation } from '../shared/sim/simulation';
 import { replay } from '../shared/sim/replay';
 import { Mulberry32 } from '../shared/sim/rng';
-import type { Action, InputEvent, SimEvent } from '../shared/sim/types';
+import type { Action, InputEvent } from '../shared/sim/types';
+import { playAutopilot } from './autopilot';
 
 const ACTIONS: Action[] = ['LEFT', 'RIGHT', 'JUMP', 'SLIDE', 'BAYANIHAN'];
-
-/** A long run: dodges what is in its lane and fires overdrive whenever the gauge allows. */
-function playAutopilot(seed: string, maxTicks: number) {
-  const sim = new GameSimulation(seed);
-  const inputLog: InputEvent[] = [];
-  const events: SimEvent[] = [];
-  let cooldown = 0;
-
-  while (sim.status === 'RUNNING' && sim.tick < maxTicks) {
-    const actions: Action[] = [];
-    if (cooldown-- <= 0) {
-      const lane = sim.player.lane;
-      const ahead = sim.chunks
-        .flatMap((c) => c.obstacles)
-        .filter((o) => !o.cleared && o.zPos > sim.playerZ && o.zPos - sim.playerZ < 9);
-      const blocking = ahead.find((o) => o.lane === lane);
-      if (sim.overdriveGauge >= 40 && !sim.isOverdriveActive) {
-        actions.push('BAYANIHAN');
-      } else if (blocking) {
-        const free = [lane - 1, lane + 1].filter((l) => l >= 0 && l <= 2 && !ahead.some((o) => o.lane === l));
-        if (free.length && blocking.type !== 'barrier_high') actions.push(free[0] < lane ? 'LEFT' : 'RIGHT');
-        else actions.push(blocking.type === 'barrier_high' ? 'SLIDE' : 'JUMP');
-        cooldown = 6;
-      }
-    }
-    for (const action of actions) inputLog.push({ tick: sim.tick, action });
-    events.push(...sim.step(actions));
-  }
-  return { sim, inputLog, events };
-}
 
 function randomLog(logSeed: string, length: number): InputEvent[] {
   const rng = new Mulberry32(logSeed);
@@ -51,9 +22,9 @@ function randomLog(logSeed: string, length: number): InputEvent[] {
 
 describe('GameSimulation determinism', () => {
   it('gives the same result, state and events for the same seed and inputs', () => {
-    const a = playAutopilot('DET-1', 6000);
-    const b = playAutopilot('DET-1', 6000);
-    expect(a.sim.tick).toBeGreaterThan(1000); // the run is long enough to mean something
+    const a = playAutopilot('DET-1');
+    const b = playAutopilot('DET-1');
+    expect(a.sim.tick).toBeGreaterThan(3000); // a long run, so the comparison means something
     expect(b.sim.result()).toEqual(a.sim.result());
     expect(b.events).toEqual(a.events);
     expect(b.sim.player).toEqual(a.sim.player);
@@ -62,7 +33,7 @@ describe('GameSimulation determinism', () => {
 
   it('replay(seed, inputLog) reproduces a live run exactly', () => {
     for (const seed of ['DET-2', 'DET-3', 'DET-4', 'SEED-DAILY-GAUNTLET']) {
-      const live = playAutopilot(seed, 20000);
+      const live = playAutopilot(seed);
       expect(replay(seed, live.inputLog, live.sim.tick)).toEqual(live.sim.result());
     }
   });
@@ -75,15 +46,17 @@ describe('GameSimulation determinism', () => {
   });
 
   it('is sensitive to inputs: a different log gives a different run', () => {
-    const live = playAutopilot('DET-5', 20000);
-    const dropped = live.inputLog.filter((_, i) => i !== Math.floor(live.inputLog.length / 2));
+    const live = playAutopilot('DET-5');
+    // Some single inputs are redundant (a jump requested mid-air), so drop a stretch of them
+    const third = Math.floor(live.inputLog.length / 3);
+    const dropped = live.inputLog.filter((_, i) => i < third || i >= third + 10);
     expect(replay('DET-5', dropped, live.sim.tick)).not.toEqual(live.sim.result());
   });
 
-  it('stops stepping once crashed', () => {
-    const sim = new GameSimulation('CRASH');
+  it('stops stepping once the run has ended', () => {
+    const sim = new GameSimulation('END');
     while (sim.status === 'RUNNING' && sim.tick < 100000) sim.step();
-    expect(sim.status).toBe('CRASHED');
+    expect(sim.status).not.toBe('RUNNING');
     const before = sim.result();
     expect(sim.step(['JUMP'])).toEqual([]);
     expect(sim.result()).toEqual(before);

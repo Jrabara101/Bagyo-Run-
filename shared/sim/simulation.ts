@@ -1,28 +1,31 @@
+import { Action, AreaId, GoBagItemId, HazardId, PowerUpType, RunResult, SignalLevel, SimEvent, TrackChunk } from './types';
+import { KinematicController } from './player';
+import { checkCollectible, checkObstacle } from './collision';
+import { generateChunk } from './course';
 import {
-  Action,
-  InputEvent,
-  PowerUpType,
-  RunResult,
-  SimEvent,
-  TrackChunk,
-} from './types';
-import {
-  KinematicController,
-  BASE_SPEED,
-  MAX_SPEED,
-  SPEED_ACCELERATION,
-  OVERDRIVE_SPEED_BOOST,
   FIXED_TIMESTEP_SEC,
-} from './player';
-import { generateChunk, CHUNK_LENGTH, getBiomeForDistance } from './course';
+  TICK_MS,
+  SPEED_ACCELERATION,
+  STARTING_HEARTS,
+  HIT_INVULNERABLE_MS,
+  SHIELD_INVULNERABLE_MS,
+  BAYANIHAN_DURATION_TICKS,
+  BAYANIHAN_MIN_GAUGE,
+  BAYANIHAN_SPEED_BOOST,
+  BAYANIHAN_PICKUP_GAUGE,
+  NEAR_MISS_GAUGE,
+  POWERUP_DURATION_TICKS,
+  CHUNK_LENGTH,
+  CHUNKS_AHEAD,
+} from './constants';
+import { distancePoints, finishBonus, nearMissPoints, nextCombo, SCORE, supplyPoints } from './scoring';
+import { areaAt, COURSE_LENGTH_M } from '../content/areas';
+import { signalAt } from '../content/signals';
+import { GO_BAG_ITEMS } from '../content/items';
 
-export const TICK_MS = FIXED_TIMESTEP_SEC * 1000;
-export const OVERDRIVE_DURATION_TICKS = 360; // 6 s
-export const POWERUP_DURATION_TICKS = 480; // 8 s
-export const OVERDRIVE_MIN_GAUGE = 40;
-const CHUNKS_AHEAD = 4;
+export { TICK_MS };
 
-export type SimStatus = 'RUNNING' | 'CRASHED';
+export type SimStatus = 'RUNNING' | 'FINISHED' | 'RESCUED';
 
 export interface ActivePowerUp {
   type: PowerUpType;
@@ -32,9 +35,12 @@ export interface ActivePowerUp {
 /**
  * The game rules as a headless, deterministic state machine.
  *
- * Time is a tick count at a fixed 60 Hz. `step(inputs)` applies the inputs, advances one tick
+ * Time is a tick count at a fixed 60 Hz. `step(actions)` applies the inputs, advances one tick
  * and returns what happened as events. It never touches audio, rendering, the DOM or a clock,
  * so the same seed and input log always produce the same run, in the browser or on the server.
+ *
+ * A run is a fixed course to the evacuation center. It ends at the finish line (FINISHED) or
+ * when the last heart is lost (RESCUED: score kept, no finish bonus).
  */
 export class GameSimulation {
   public readonly seed: string;
@@ -45,16 +51,23 @@ export class GameSimulation {
   public readonly kinematics = new KinematicController();
   public chunks: TrackChunk[] = [];
   public playerZ = 0;
-  public currentSpeed = BASE_SPEED;
+  public currentSpeed = signalAt(0).speed;
+  public signal: SignalLevel = signalAt(0).level;
+  public areaId: AreaId = areaAt(0).id;
+
   public score = 0;
-  public coins = 0;
+  public hearts = STARTING_HEARTS;
+  public hits = 0;
+  public supplies = 0;
+  public goBag: GoBagItemId[] = [];
   public nearMisses = 0;
-  public comboMultiplier = 1.0;
-  public overdriveGauge = 0;
-  public isOverdriveActive = false;
-  public overdriveTicksLeft = 0;
+  public combo = 1.0;
+  public maxCombo = 1.0;
+  public bayanihanGauge = 0;
+  public isBayanihanActive = false;
+  public bayanihanTicksLeft = 0;
   public powerUps: ActivePowerUp[] = [];
-  public causeOfDeath: string | undefined;
+  public rescuedBy: HazardId | undefined;
 
   private currentChunkIndex = 0;
 
@@ -71,6 +84,10 @@ export class GameSimulation {
 
   get elapsedMs() {
     return this.tick * TICK_MS;
+  }
+
+  get effectiveSpeed() {
+    return this.currentSpeed + (this.isBayanihanActive ? BAYANIHAN_SPEED_BOOST : 0);
   }
 
   /** Applies `actions` (in order) and advances one tick. Does nothing once the run has ended. */
@@ -97,13 +114,18 @@ export class GameSimulation {
     return {
       seed: this.seed,
       score: this.score,
-      distance: Math.floor(this.playerZ),
-      coins: this.coins,
+      distance: Math.floor(Math.min(this.playerZ, COURSE_LENGTH_M)),
+      finished: this.status === 'FINISHED',
+      heartsLeft: this.hearts,
+      hits: this.hits,
+      gatesCorrect: 0,
+      goBagCount: this.goBag.length,
+      supplies: this.supplies,
       nearMisses: this.nearMisses,
-      maxCombo: Number(this.comboMultiplier.toFixed(1)),
+      maxCombo: Number(this.maxCombo.toFixed(2)),
       ticks: this.tick,
-      crashed: this.status === 'CRASHED',
-      causeOfDeath: this.causeOfDeath,
+      wrongQuestionIds: [],
+      rescuedBy: this.rescuedBy,
     };
   }
 
@@ -125,11 +147,11 @@ export class GameSimulation {
         events.push({ type: 'SLIDE_STARTED' });
         break;
       case 'BAYANIHAN':
-        if (this.overdriveGauge < OVERDRIVE_MIN_GAUGE && !this.isOverdriveActive) break;
-        this.isOverdriveActive = true;
-        this.overdriveTicksLeft = OVERDRIVE_DURATION_TICKS;
-        this.overdriveGauge = 0;
-        events.push({ type: 'OVERDRIVE_STARTED' });
+        if (this.bayanihanGauge < BAYANIHAN_MIN_GAUGE && !this.isBayanihanActive) break;
+        this.isBayanihanActive = true;
+        this.bayanihanTicksLeft = BAYANIHAN_DURATION_TICKS;
+        this.bayanihanGauge = 0;
+        events.push({ type: 'BAYANIHAN_STARTED' });
         break;
     }
   }
@@ -138,100 +160,129 @@ export class GameSimulation {
     const dt = FIXED_TIMESTEP_SEC;
     this.tick += 1;
 
-    const biome = getBiomeForDistance(this.playerZ);
+    // Pace follows the current signal, easing between levels
+    const target = signalAt(this.playerZ).speed;
+    if (this.currentSpeed < target) this.currentSpeed = Math.min(target, this.currentSpeed + SPEED_ACCELERATION * dt);
+    else if (this.currentSpeed > target) this.currentSpeed = Math.max(target, this.currentSpeed - SPEED_ACCELERATION * dt);
 
-    if (this.currentSpeed < MAX_SPEED) {
-      this.currentSpeed += SPEED_ACCELERATION * dt;
-    }
-
-    let effectiveSpeed = this.currentSpeed;
-    if (this.isOverdriveActive) {
-      effectiveSpeed += OVERDRIVE_SPEED_BOOST;
-      this.overdriveTicksLeft -= 1;
-      if (this.overdriveTicksLeft <= 0) {
-        this.isOverdriveActive = false;
-        this.overdriveTicksLeft = 0;
+    const speed = this.effectiveSpeed;
+    if (this.isBayanihanActive) {
+      this.bayanihanTicksLeft -= 1;
+      if (this.bayanihanTicksLeft <= 0) {
+        this.isBayanihanActive = false;
+        this.bayanihanTicksLeft = 0;
       }
     }
 
-    this.playerZ += effectiveSpeed * dt;
-    this.kinematics.update(dt, biome);
+    const prevZ = this.playerZ;
+    this.playerZ += speed * dt;
+    this.kinematics.update(dt);
 
-    const hasMagnet = this.isOverdriveActive || this.powerUps.some((p) => p.type === 'coin_magnet');
+    this.updateZone(events);
+    this.recycleChunks();
+    this.resolveContacts(events);
 
-    // 1. Recycle chunks behind the player and keep CHUNKS_AHEAD generated in front
-    const currentZ = this.playerZ;
-    const chunkIndex = Math.floor(currentZ / CHUNK_LENGTH);
-    if (chunkIndex > this.currentChunkIndex) {
-      this.currentChunkIndex = chunkIndex;
-      this.chunks = this.chunks.filter((c) => c.zStart + c.length > currentZ - CHUNK_LENGTH);
-      const maxExisting = Math.max(...this.chunks.map((c) => Math.floor(c.zStart / CHUNK_LENGTH)));
-      for (let i = maxExisting + 1; i <= chunkIndex + CHUNKS_AHEAD; i++) {
-        this.chunks.push(generateChunk(i, this.seed));
-      }
+    this.score += distancePoints(Math.max(0, Math.min(this.playerZ, COURSE_LENGTH_M) - prevZ), this.combo);
+    this.powerUps = this.powerUps.filter((p) => p.expiresAtTick > this.tick);
+
+    if (this.hearts <= 0) {
+      this.status = 'RESCUED';
+      events.push({ type: 'RESCUED', hazardId: this.rescuedBy! });
+    } else if (this.playerZ >= COURSE_LENGTH_M) {
+      this.status = 'FINISHED';
+      this.score += finishBonus(this.hearts);
+      events.push({ type: 'FINISHED' });
     }
+  }
 
-    // 2. Collisions, near-misses and pickups
+  private updateZone(events: SimEvent[]) {
+    const signal = signalAt(this.playerZ).level;
+    if (signal !== this.signal) {
+      this.signal = signal;
+      events.push({ type: 'SIGNAL_UP', level: signal });
+    }
+    const area = areaAt(this.playerZ).id;
+    if (area !== this.areaId) {
+      this.areaId = area;
+      events.push({ type: 'AREA_ENTERED', areaId: area });
+    }
+  }
+
+  /** Drops chunks behind the player and keeps CHUNKS_AHEAD generated in front. */
+  private recycleChunks() {
+    const z = this.playerZ;
+    const chunkIndex = Math.floor(z / CHUNK_LENGTH);
+    if (chunkIndex <= this.currentChunkIndex) return;
+    this.currentChunkIndex = chunkIndex;
+    this.chunks = this.chunks.filter((c) => c.zStart + c.length > z - CHUNK_LENGTH);
+    const maxExisting = Math.max(...this.chunks.map((c) => Math.floor(c.zStart / CHUNK_LENGTH)));
+    for (let i = maxExisting + 1; i <= chunkIndex + CHUNKS_AHEAD; i++) {
+      this.chunks.push(generateChunk(i, this.seed));
+    }
+  }
+
+  private resolveContacts(events: SimEvent[]) {
     const player = this.kinematics.player;
-    let crash: { hazardId: string; cause: string } | null = null;
+    const z = this.playerZ;
+    const hasMagnet = this.isBayanihanActive || this.powerUps.some((p) => p.type === 'tanod_whistle');
 
     for (const chunk of this.chunks) {
       for (const obs of chunk.obstacles) {
-        const hit = this.kinematics.checkObstacleCollision(obs, currentZ, this.isOverdriveActive);
+        const invincible = this.isBayanihanActive || player.invincibleTimerMs > 0;
+        const contact = checkObstacle(player, obs, z, invincible);
 
-        if (hit === 'impact') {
-          const shieldIdx = this.powerUps.findIndex((p) => p.type === 'shield');
-          if (shieldIdx >= 0) {
-            this.powerUps.splice(shieldIdx, 1);
-            player.invincibleTimerMs = 1200;
-            obs.cleared = true;
-            events.push({ type: 'SHIELD_ABSORBED', hazardId: obs.id });
+        if (contact === 'impact') {
+          obs.cleared = true;
+          const vest = this.powerUps.findIndex((p) => p.type === 'life_vest');
+          if (vest >= 0) {
+            this.powerUps.splice(vest, 1);
+            player.invincibleTimerMs = SHIELD_INVULNERABLE_MS;
+            events.push({ type: 'SHIELD_ABSORBED', hazardId: obs.hazardId });
           } else {
-            crash = { hazardId: obs.id, cause: causeOfDeathFor(obs.type) };
-            break;
+            this.hearts -= 1;
+            this.hits += 1;
+            this.combo = 1.0;
+            player.invincibleTimerMs = HIT_INVULNERABLE_MS;
+            events.push({ type: 'HAZARD_HIT', hazardId: obs.hazardId, heartsLeft: this.hearts });
+            if (this.hearts <= 0) {
+              this.rescuedBy = obs.hazardId;
+              return;
+            }
           }
-        } else if (hit === 'near_miss') {
+        } else if (contact === 'near_miss') {
           this.nearMisses += 1;
-          this.comboMultiplier = Math.min(5.0, this.comboMultiplier + 0.25);
-          this.score += Math.floor(250 * this.comboMultiplier);
-          this.overdriveGauge = Math.min(100, this.overdriveGauge + 12);
-          events.push({ type: 'NEAR_MISS', combo: this.comboMultiplier });
+          this.combo = nextCombo(this.combo);
+          this.maxCombo = Math.max(this.maxCombo, this.combo);
+          this.score += nearMissPoints(this.combo);
+          this.bayanihanGauge = Math.min(100, this.bayanihanGauge + NEAR_MISS_GAUGE);
+          events.push({ type: 'NEAR_MISS', combo: this.combo });
         }
       }
-
-      if (crash) break;
 
       for (const col of chunk.collectibles) {
-        if (!this.kinematics.checkCollectibleCollision(col, currentZ, hasMagnet)) continue;
+        if (!checkCollectible(player, col, z, hasMagnet)) continue;
 
-        if (col.type === 'coin') {
-          this.coins += 1;
-          this.score += Math.floor(100 * this.comboMultiplier);
-        } else if (col.type === 'overdrive_boost') {
-          this.overdriveGauge = Math.min(100, this.overdriveGauge + 50);
+        if (col.type === 'supply') {
+          this.supplies += 1;
+          this.score += supplyPoints(this.combo);
+          events.push({ type: 'ITEM_COLLECTED', itemId: 'supply', goBag: false });
+        } else if (col.type === 'gobag') {
+          this.goBag.push(col.itemId!);
+          this.score += SCORE.goBagItem;
+          events.push({ type: 'ITEM_COLLECTED', itemId: col.itemId!, goBag: true });
+          if (this.goBag.length === GO_BAG_ITEMS.length) {
+            this.score += SCORE.goBagComplete;
+            events.push({ type: 'GO_BAG_COMPLETE' });
+          }
         } else {
-          this.powerUps.push({ type: col.type, expiresAtTick: this.tick + POWERUP_DURATION_TICKS });
+          if (col.type === 'bayanihan') {
+            this.bayanihanGauge = Math.min(100, this.bayanihanGauge + BAYANIHAN_PICKUP_GAUGE);
+          } else {
+            this.powerUps.push({ type: col.type, expiresAtTick: this.tick + POWERUP_DURATION_TICKS });
+          }
+          events.push({ type: 'ITEM_COLLECTED', itemId: col.type, goBag: false });
         }
-        events.push({ type: 'ITEM_COLLECTED', itemId: col.type, goBag: false });
       }
     }
-
-    // Distance score
-    this.score += Math.floor(effectiveSpeed * dt * 8 * this.comboMultiplier);
-
-    this.powerUps = this.powerUps.filter((p) => p.expiresAtTick > this.tick);
-
-    if (crash) {
-      this.status = 'CRASHED';
-      this.causeOfDeath = crash.cause;
-      events.push({ type: 'CRASHED', ...crash });
-    }
   }
-}
-
-function causeOfDeathFor(type: string): string {
-  if (type === 'barrier_high') return 'High Overhead Barrier';
-  if (type === 'barrier_low') return 'Low Laser Hurdle';
-  if (type === 'pitfall') return 'Void Chasm Pitfall';
-  return 'Oncoming Drone Train';
 }

@@ -1,12 +1,20 @@
+import type { AreaId } from '../content/areas';
+import type { HazardId } from '../content/hazards';
+import type { GoBagItemId, PowerUpType } from '../content/items';
+import type { SignalLevel } from '../content/signals';
+
+export type { AreaId, HazardId, GoBagItemId, PowerUpType, SignalLevel };
+
 export type LaneIndex = 0 | 1 | 2; // Left, Center, Right
+/** Collision class: how a hazard is checked. The hazard itself (content) is `hazardId`. */
 export type ObstacleType = 'barrier_low' | 'barrier_high' | 'pitfall' | 'moving_train';
-export type PowerUpType = 'coin_magnet' | 'shield' | 'overdrive_boost' | 'multiplier_2x';
 
 export interface ObstacleEntity {
   id: string;
+  hazardId: HazardId;
   type: ObstacleType;
   lane: LaneIndex;
-  zPos: number; // Longitudinal distance along the track
+  zPos: number; // Longitudinal distance along the track, meters
   height: number;
   width: number;
   cleared: boolean;
@@ -15,7 +23,9 @@ export interface ObstacleEntity {
 
 export interface CollectibleEntity {
   id: string;
-  type: 'coin' | PowerUpType;
+  type: 'supply' | 'gobag' | PowerUpType;
+  /** Set for `gobag` collectibles. */
+  itemId?: GoBagItemId;
   lane: LaneIndex;
   zPos: number;
   yOffset: number; // Height off the ground
@@ -26,7 +36,7 @@ export interface TrackChunk {
   id: string;
   zStart: number;
   length: number;
-  biome: 'neon_city' | 'sky_bridge' | 'magma_vault';
+  areaId: AreaId;
   obstacles: ObstacleEntity[];
   collectibles: CollectibleEntity[];
 }
@@ -44,7 +54,6 @@ export interface PlayerPhysicsState {
   invincibleTimerMs: number;
 }
 
-// BAYANIHAN triggers the current overdrive burst; it is renamed with the Phase 2 rules.
 export type Action = 'LEFT' | 'RIGHT' | 'JUMP' | 'SLIDE' | 'BAYANIHAN';
 
 /** One player input, stamped with the tick it is applied at (before that tick's physics). */
@@ -57,60 +66,81 @@ export type SimEvent =
   | { type: 'LANE_CHANGED'; lane: LaneIndex }
   | { type: 'JUMP_REQUESTED' }
   | { type: 'SLIDE_STARTED' }
-  | { type: 'OVERDRIVE_STARTED' }
-  | { type: 'ITEM_COLLECTED'; itemId: CollectibleEntity['type']; goBag: boolean }
+  | { type: 'BAYANIHAN_STARTED' }
+  | { type: 'ITEM_COLLECTED'; itemId: string; goBag: boolean }
+  | { type: 'GO_BAG_COMPLETE' }
   | { type: 'NEAR_MISS'; combo: number }
-  | { type: 'SHIELD_ABSORBED'; hazardId: string }
-  | { type: 'CRASHED'; hazardId: string; cause: string };
+  | { type: 'SHIELD_ABSORBED'; hazardId: HazardId }
+  | { type: 'HAZARD_HIT'; hazardId: HazardId; heartsLeft: number }
+  | { type: 'SIGNAL_UP'; level: SignalLevel }
+  | { type: 'AREA_ENTERED'; areaId: AreaId }
+  | { type: 'FINISHED' }
+  | { type: 'RESCUED'; hazardId: HazardId };
 
 export interface RunResult {
   seed: string;
   score: number;
   distance: number;
-  coins: number;
+  finished: boolean;
+  heartsLeft: number;
+  hits: number;
+  gatesCorrect: number;
+  goBagCount: number;
+  supplies: number;
   nearMisses: number;
   maxCombo: number;
   ticks: number;
-  crashed: boolean;
-  causeOfDeath?: string;
+  wrongQuestionIds: string[];
+  /** The hazard that took the last heart, when the run ended in a rescue. */
+  rescuedBy?: HazardId;
 }
 
-export interface EndlessRunnerGameState {
-  status: 'IDLE' | 'COUNTDOWN' | 'RUNNING' | 'PAUSED' | 'CRASHED';
+export type RunStatus = 'IDLE' | 'RUNNING' | 'PAUSED' | 'ENDED';
+
+/** Throttled HUD snapshot the React layer renders. */
+export interface HudState {
+  status: RunStatus;
   seed: string;
   distanceMeters: number;
-  currentSpeed: number; // m/s, accelerating over time
+  courseMeters: number;
+  currentSpeed: number;
   score: number;
-  coinsCollected: number;
+  hearts: number;
+  signal: SignalLevel;
+  areaId: AreaId;
+  supplies: number;
+  goBag: GoBagItemId[];
   nearMissCount: number;
-  overdriveGauge: number; // 0.0 - 100.0
-  isOverdriveActive: boolean;
+  bayanihanGauge: number; // 0 - 100
+  isBayanihanActive: boolean;
   activePowerUps: { type: PowerUpType; expiresAtMs: number }[];
   ghostDistanceMeters: number;
 }
 
 export interface TelemetryPoint {
   timeMs: number;
-  action: 'lane_shift' | 'jump' | 'slide' | 'overdrive_trigger' | 'tick';
+  action: 'lane_shift' | 'jump' | 'slide' | 'bayanihan' | 'tick';
   lane: LaneIndex;
   y: number;
   z: number;
 }
 
+/** What the client sends. The server replays `inputLog` and computes the RunResult itself. */
 export interface RunSubmissionPayload {
   seed: string;
   playerName: string;
-  distance: number;
-  score: number;
-  coins: number;
-  nearMisses: number;
-  maxCombo: number;
-  durationMs: number;
-  causeOfDeath?: string;
-  inputTelemetry: TelemetryPoint[];
-  /** Tick-stamped inputs; with the seed this reproduces the run exactly. */
   inputLog: InputEvent[];
   ticks: number;
+  /** Sampled positions, kept only for ghost playback. */
+  inputTelemetry: TelemetryPoint[];
+}
+
+export interface RunVerifyResponse {
+  runId?: string;
+  verified: boolean;
+  reason: string;
+  result?: RunResult;
+  rank?: number;
 }
 
 export interface LeaderboardRecord {

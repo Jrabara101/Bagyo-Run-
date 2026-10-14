@@ -1,11 +1,13 @@
 import React from 'react';
-import { EndlessRunnerGameState } from '../../shared/sim/types';
+import { HudState } from '../../shared/sim/types';
+import { AREAS } from '../../shared/content/areas';
+import { GO_BAG_ITEMS } from '../../shared/content/items';
+import { STARTING_HEARTS } from '../../shared/sim/constants';
 import { Zap, Shield, Magnet, Rocket, Play, Pause, Volume2, VolumeX, Flame } from 'lucide-react';
 
 interface HUDOverlayProps {
-  gameState: EndlessRunnerGameState;
+  gameState: HudState;
   ghostDeltaMeters: number;
-  activeBiome: 'neon_city' | 'sky_bridge' | 'magma_vault';
   isAudioMuted: boolean;
   activePilotsCount: number;
   onToggleAudio: () => void;
@@ -16,24 +18,19 @@ interface HUDOverlayProps {
 export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   gameState,
   ghostDeltaMeters,
-  activeBiome,
   isAudioMuted,
   activePilotsCount,
   onToggleAudio,
   onPauseToggle,
   onTriggerOverdrive,
 }) => {
-  const isOverdriveReady = gameState.overdriveGauge >= 40 || gameState.isOverdriveActive;
+  const isOverdriveReady = gameState.bayanihanGauge >= 40 || gameState.isBayanihanActive;
 
   // Calculate 16 segments for Overdrive Condenser bar
   const totalSegments = 16;
-  const filledSegments = Math.round((gameState.overdriveGauge / 100) * totalSegments);
+  const filledSegments = Math.round((gameState.bayanihanGauge / 100) * totalSegments);
 
-  const biomeTitles = {
-    neon_city: 'NEON CHASM // SECTOR 01',
-    sky_bridge: 'ORBITAL SKYBRIDGE // SECTOR 02',
-    magma_vault: 'MAGMA VAULT // SECTOR 03',
-  };
+  const area = AREAS.find((x) => x.id === gameState.areaId) ?? AREAS[0];
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-3 md:p-6 z-20">
@@ -45,13 +42,13 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         <div className="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-4">
           <div className="flex flex-col">
             <span className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">
-              TRAVERSAL DISTANCE
+              TO THE EVACUATION CENTER
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="font-mono text-2xl md:text-3xl font-extrabold text-neon-cyan">
                 {gameState.distanceMeters.toLocaleString()}
               </span>
-              <span className="font-mono text-xs text-gray-400 font-semibold">METERS</span>
+              <span className="font-mono text-xs text-gray-400 font-semibold">/ {gameState.courseMeters.toLocaleString()} M</span>
             </div>
           </div>
 
@@ -70,18 +67,17 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         {/* Center: Biome Indicator & Ghost Split */}
         <div className="flex flex-col items-center">
           <div className="glass-panel px-4 py-1.5 rounded-full flex items-center gap-2.5 mb-1.5">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                activeBiome === 'magma_vault'
-                  ? 'bg-orange-500 shadow-[0_0_10px_#f97316]'
-                  : activeBiome === 'sky_bridge'
-                  ? 'bg-blue-400 shadow-[0_0_10px_#60a5fa]'
-                  : 'bg-fuchsia-400 shadow-[0_0_10px_#e879f9]'
-              } animate-ping`}
-            />
+            <span className="px-2 py-0.5 rounded bg-amber-400 text-black font-mono text-[11px] font-black">SIGNAL NO. {gameState.signal}</span>
             <span className="font-headline text-xs md:text-sm font-bold tracking-widest uppercase text-white">
-              {biomeTitles[activeBiome]}
+              {area.name.en}
             </span>
+          </div>
+          <div className="glass-panel px-4 py-1 rounded-full flex items-center gap-3 mb-1.5 font-mono text-xs font-bold">
+            <span className="text-red-400 tracking-widest" aria-label={`${gameState.hearts} of ${STARTING_HEARTS} hearts`}>
+              {"♥".repeat(gameState.hearts)}
+              <span className="text-gray-600">{"♥".repeat(Math.max(0, STARTING_HEARTS - gameState.hearts))}</span>
+            </span>
+            <span className="text-amber-300">GO-BAG {gameState.goBag.length}/{GO_BAG_ITEMS.length}</span>
           </div>
 
           {/* Ghost Delta Split Indicator */}
@@ -116,7 +112,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             <div className="glass-panel px-3 py-1 rounded-full flex items-center gap-2">
               <span className="text-amber-400 text-xs">⚡</span>
               <span className="font-mono text-xs font-bold text-amber-300">
-                {gameState.coinsCollected} ORBS
+                {gameState.supplies} SUPPLIES
               </span>
             </div>
             <div className="glass-panel px-3 py-1 rounded-full flex items-center gap-2">
@@ -157,16 +153,16 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-white/10">
               <Magnet
                 className={`w-4 h-4 ${
-                  gameState.isOverdriveActive || gameState.activePowerUps.some((p) => p.type === 'coin_magnet')
+                  gameState.isBayanihanActive || gameState.activePowerUps.some((p) => p.type === 'tanod_whistle')
                     ? 'text-neon-amber animate-bounce'
                     : 'text-gray-500'
                 }`}
               />
             </div>
             <div className="flex flex-col">
-              <span className="font-mono text-[9px] text-gray-400 uppercase">MAGNET</span>
+              <span className="font-mono text-[9px] text-gray-400 uppercase">WHISTLE</span>
               <span className="font-mono text-[11px] font-bold text-white">
-                {gameState.isOverdriveActive || gameState.activePowerUps.some((p) => p.type === 'coin_magnet')
+                {gameState.isBayanihanActive || gameState.activePowerUps.some((p) => p.type === 'tanod_whistle')
                   ? 'ACTIVE'
                   : 'STANDBY'}
               </span>
@@ -177,16 +173,16 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-white/10">
               <Shield
                 className={`w-4 h-4 ${
-                  gameState.activePowerUps.some((p) => p.type === 'shield')
+                  gameState.activePowerUps.some((p) => p.type === 'life_vest')
                     ? 'text-neon-cyan animate-pulse'
                     : 'text-gray-500'
                 }`}
               />
             </div>
             <div className="flex flex-col">
-              <span className="font-mono text-[9px] text-gray-400 uppercase">SHIELD</span>
+              <span className="font-mono text-[9px] text-gray-400 uppercase">LIFE VEST</span>
               <span className="font-mono text-[11px] font-bold text-white">
-                {gameState.activePowerUps.some((p) => p.type === 'shield') ? '1 HIT' : 'OFFLINE'}
+                {gameState.activePowerUps.some((p) => p.type === 'life_vest') ? '1 HIT' : 'NONE'}
               </span>
             </div>
           </div>
@@ -197,17 +193,17 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           <div className="flex items-center justify-between w-full px-1">
             <span className="font-mono text-[10px] text-neon-pink font-bold tracking-widest flex items-center gap-1.5">
               <Flame className="w-3.5 h-3.5 text-fuchsia-400 animate-pulse" />
-              SLIPSTREAM OVERDRIVE
+              BAYANIHAN
             </span>
             <span className="font-mono text-[10px] font-bold text-neon-cyan">
-              {gameState.isOverdriveActive ? 'WARP BURST ENGAGED' : `${gameState.overdriveGauge.toFixed(0)}% CHARGED`}
+              {gameState.isBayanihanActive ? 'NEIGHBORS CARRY YOU' : `${gameState.bayanihanGauge.toFixed(0)}% CHARGED`}
             </span>
           </div>
 
           {/* 16-Segment Neon Energy Conduit */}
           <div className="w-full glass-panel p-1.5 rounded-xl flex items-center gap-1">
             {Array.from({ length: totalSegments }).map((_, i) => {
-              const isFilled = i < filledSegments || gameState.isOverdriveActive;
+              const isFilled = i < filledSegments || gameState.isBayanihanActive;
               const isHighPower = i >= 8;
               return (
                 <div
@@ -234,14 +230,14 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 : 'bg-gray-800/80 text-gray-500 cursor-not-allowed border border-white/5'
             }`}
           >
-            {gameState.isOverdriveActive ? 'HYPER SPEED ACTIVE ⚡' : isOverdriveReady ? 'BURST READY [SPACE]' : 'CHARGING OVERDRIVE...'}
+            {gameState.isBayanihanActive ? 'BAYANIHAN ACTIVE' : isOverdriveReady ? 'BAYANIHAN READY [SPACE]' : 'NEAR MISSES FILL THE METER'}
           </button>
         </div>
 
         {/* Right: Avionics Controls Cheatsheet */}
         <div className="hidden lg:flex glass-panel px-4 py-2.5 rounded-2xl flex-col gap-1.5">
           <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">
-            AVIONIC CONTROLS
+            CONTROLS
           </span>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px]">
             <div className="flex items-center gap-1.5">
@@ -258,7 +254,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="px-1.5 py-0.5 bg-surface-container-highest text-fuchsia-400 rounded font-bold">SPACE</span>
-              <span className="text-fuchsia-300">OVERDRIVE</span>
+              <span className="text-fuchsia-300">BAYANIHAN</span>
             </div>
           </div>
         </div>

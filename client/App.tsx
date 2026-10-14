@@ -6,7 +6,7 @@ import { PauseSheet } from './components/PauseSheet';
 import { GameOverDialog } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
 import { LeaderboardModal } from './components/LeaderboardModal';
-import { GameSettings, RunSubmissionPayload, DailySeedConfig } from '../shared/sim/types';
+import { GameSettings, RunResult, RunSubmissionPayload, RunVerifyResponse, DailySeedConfig } from '../shared/sim/types';
 import {
   Play,
   RotateCcw,
@@ -50,7 +50,7 @@ export function App() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
 
   const [dailyConfig, setDailyConfig] = useState<DailySeedConfig | null>(null);
-  const [lastSubmission, setLastSubmission] = useState<RunSubmissionPayload | null>(null);
+  const [lastResult, setLastResult] = useState<RunResult | null>(null);
   const [validationStatus, setValidationStatus] = useState<{ verified: boolean; reason: string; rank?: number } | null>(null);
   const [isServerConnected, setIsServerConnected] = useState<boolean>(false);
 
@@ -106,29 +106,27 @@ export function App() {
     };
   }, []);
 
-  // Handle Game Over Telemetry Submission to Backend Server
-  const handleGameOverSubmission = (payload: RunSubmissionPayload) => {
-    setLastSubmission(payload);
-    setValidationStatus({ verified: false, reason: 'Validating flight telemetry against seed...' });
+  // Submit the input log; the server replays it and returns its own result
+  const handleGameOverSubmission = (result: RunResult, payload: RunSubmissionPayload) => {
+    setLastResult(result);
+    setValidationStatus({ verified: false, reason: 'Replaying your run on the server...' });
 
     fetch('/api/runs/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-      .then((res) => res.json())
-      .then((resData) => {
+      .then((res) => res.json() as Promise<RunVerifyResponse>)
+      .then((res) => {
+        const matches = res.verified && res.result?.score === result.score;
         setValidationStatus({
-          verified: resData.verified,
-          reason: resData.validationReason || 'Replay kinematics match deterministic seed bounds.',
-          rank: resData.rank,
+          verified: matches,
+          reason: matches ? res.reason : res.verified ? 'Server replay gave a different score' : res.reason,
+          rank: res.rank,
         });
       })
-      .catch((err) => {
-        setValidationStatus({
-          verified: true,
-          reason: 'Offline verified. Kinematic constraints satisfied.',
-        });
+      .catch(() => {
+        setValidationStatus({ verified: false, reason: 'Offline: this run was not submitted' });
       });
   };
 
@@ -136,7 +134,6 @@ export function App() {
   const {
     gameState,
     ghostDeltaMeters,
-    activeBiome,
     startGame,
     pauseGame,
     resumeGame,
@@ -314,7 +311,6 @@ export function App() {
             <HUDOverlay
               gameState={gameState}
               ghostDeltaMeters={ghostDeltaMeters}
-              activeBiome={activeBiome}
               isAudioMuted={isAudioMuted}
               activePilotsCount={1}
               onToggleAudio={() => setIsAudioMuted(!isAudioMuted)}
@@ -337,7 +333,7 @@ export function App() {
                   NEON CHASM
                 </h1>
                 <p className="font-mono text-xs md:text-sm text-gray-300 mt-2 max-w-md">
-                  High-velocity endless reflex gauntlet. Skim hazard hitboxes to trigger Near-Miss sparks and charge Slipstream Overdrive.
+                  Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. You have 3 hearts.
                 </p>
 
                 {/* Primary Launch Action */}
@@ -385,8 +381,8 @@ export function App() {
       />
 
       <GameOverDialog
-        isOpen={gameState.status === 'CRASHED'}
-        runData={lastSubmission}
+        isOpen={gameState.status === 'ENDED'}
+        runData={lastResult}
         validationStatus={validationStatus}
         ghostDeltaMeters={ghostDeltaMeters}
         onRestart={() => {

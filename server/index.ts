@@ -3,9 +3,9 @@ import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
 import { db } from './db.js';
 import { SeedDirector } from './seedDirector.js';
-import { AntiCheatValidator } from './antiCheat.js';
+import { verifyRun } from './verify.js';
 import { ghostRelay } from './websocket.js';
-import { RunSubmissionPayload, LeaderboardRecord } from '../shared/sim/types.js';
+import { RunSubmissionPayload, RunVerifyResponse, LeaderboardRecord } from '../shared/sim/types.js';
 
 const fastify = Fastify({
   logger: true,
@@ -33,69 +33,34 @@ fastify.get<{ Params: { seed: string } }>('/api/runs/seed/:seed', async (req) =>
   return SeedDirector.getCustomSeed(req.params.seed);
 });
 
-// Server-Authoritative Anti-Cheat Verification and Run Persistence
-fastify.post<{ Body: RunSubmissionPayload }>('/api/runs/verify', async (req, reply) => {
+// Replay-verified run submission: the server re-runs the input log and stores its own result
+fastify.post<{ Body: RunSubmissionPayload }>('/api/runs/verify', async (req, reply): Promise<RunVerifyResponse | void> => {
   const payload = req.body;
-  if (!payload || !payload.seed || !payload.distance) {
-    return reply.status(400).send({ error: 'Missing required run telemetry payload' });
+  const outcome = verifyRun(payload);
+  if (!outcome.ok) {
+    return reply.status(422).send({ verified: false, reason: outcome.reason } satisfies RunVerifyResponse);
   }
-
-  // Execute Anti-Cheat Replay Verification
-  const validation = AntiCheatValidator.validateRun(
-    payload.seed,
-    payload.distance,
-    payload.score,
-    payload.durationMs,
-    payload.inputTelemetry
-  );
-
+  const { result } = outcome;
   const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const playerName = (payload.playerName || 'PILOT-01').trim().substring(0, 16);
+  const playerName = (payload.playerName || 'RUNNER').trim().substring(0, 16);
+  const reason = result.finished ? 'Replayed on the server: reached the evacuation center' : 'Replayed on the server: rescued before the finish';
 
   try {
-    // Commit run record to SQLite database
     db.prepare(`
       INSERT INTO runs (id, player_name, seed, distance, score, coins, near_misses, max_combo, duration_ms, verified, validation_reason)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      runId,
-      playerName,
-      payload.seed,
-      payload.distance,
-      payload.score,
-      payload.coins,
-      payload.nearMisses,
-      payload.maxCombo,
-      payload.durationMs,
-      validation.verified ? 1 : 0,
-      validation.reason
-    );
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `).run(runId, playerName, result.seed, result.distance, result.score, result.supplies, result.nearMisses, result.maxCombo, Math.round((result.ticks * 1000) / 60), reason);
 
-    // Save compressed/serialized telemetry for ghost runner playback
-    if (validation.verified && payload.inputTelemetry && payload.inputTelemetry.length > 0) {
-      db.prepare(`
-        INSERT INTO telemetry_logs (run_id, telemetry_json)
-        VALUES (?, ?)
-      `).run(runId, JSON.stringify(payload.inputTelemetry));
+    if (Array.isArray(payload.inputTelemetry) && payload.inputTelemetry.length > 0) {
+      db.prepare('INSERT INTO telemetry_logs (run_id, telemetry_json) VALUES (?, ?)').run(runId, JSON.stringify(payload.inputTelemetry));
     }
 
-    // Determine player rank on this seed
-    const rankResult = db.prepare(`
-      SELECT count(*) as rank FROM runs
-      WHERE seed = ? AND distance >= ? AND verified = 1
-    `).get(payload.seed, payload.distance) as { rank: number };
+    const rankResult = db.prepare('SELECT count(*) as rank FROM runs WHERE seed = ? AND score >= ? AND verified = 1').get(result.seed, result.score) as { rank: number };
 
-    return {
-      success: true,
-      runId,
-      verified: validation.verified,
-      validationReason: validation.reason,
-      rank: rankResult.rank || 1,
-    };
+    return { runId, verified: true, reason, result, rank: rankResult.rank || 1 };
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
     fastify.log.error(err);
-    return reply.status(500).send({ error: 'Database persistence fault', details: errorMsg });
+    return reply.status(500).send({ verified: false, reason: 'Could not save the run' } satisfies RunVerifyResponse);
   }
 });
 
@@ -118,7 +83,7 @@ fastify.get<{ Querystring: { seed?: string; limit?: string } }>('/api/leaderboar
     params.push(seed);
   }
 
-  query += ` ORDER BY r.distance DESC, r.score DESC LIMIT ?`;
+  query += ` ORDER BY r.score DESC, r.distance DESC LIMIT ?`;
   params.push(limit);
 
   const records = db.prepare(query).all(...params) as Array<{
@@ -164,7 +129,7 @@ fastify.get<{ Params: { seed: string } }>('/api/ghosts/:seed', async (req, reply
     FROM runs r
     JOIN telemetry_logs t ON r.id = t.run_id
     WHERE r.seed = ? AND r.verified = 1
-    ORDER BY r.distance DESC
+    ORDER BY r.score DESC
     LIMIT 1
   `).get(seed) as { id: string; player_name: string; distance: number; telemetry_json: string } | undefined;
 
@@ -175,7 +140,7 @@ fastify.get<{ Params: { seed: string } }>('/api/ghosts/:seed', async (req, reply
       FROM runs r
       JOIN telemetry_logs t ON r.id = t.run_id
       WHERE r.verified = 1
-      ORDER BY r.distance DESC
+      ORDER BY r.score DESC
       LIMIT 1
     `).get() as { id: string; player_name: string; distance: number; telemetry_json: string } | undefined;
 

@@ -1,195 +1,107 @@
-import { TrackChunk, ObstacleEntity, CollectibleEntity, LaneIndex, ObstacleType, PowerUpType } from './types';
+import { CollectibleEntity, GoBagItemId, LaneIndex, PowerUpType, TrackChunk } from './types';
 import { Mulberry32 } from './rng';
+import { CHUNK_LENGTH, FINISH_CLEAR_M } from './constants';
+import { placePattern } from './patterns';
+import { areaAt, COURSE_LENGTH_M } from '../content/areas';
+import { signalAt } from '../content/signals';
+import { GO_BAG_ITEMS } from '../content/items';
 
-export const CHUNK_LENGTH = 120; // 120 meters per chunk
-export const BIOME_TRANSITION_INTERVAL = 1000; // 1,000 meters per biome
+export { CHUNK_LENGTH, COURSE_LENGTH_M };
 
-export function getBiomeForDistance(zPos: number): 'neon_city' | 'sky_bridge' | 'magma_vault' {
-  const sector = Math.floor(Math.max(0, zPos) / BIOME_TRANSITION_INTERVAL) % 3;
-  if (sector === 0) return 'neon_city';
-  if (sector === 1) return 'sky_bridge';
-  return 'magma_vault';
+const POWER_UP_CHANCE = 0.28;
+const POWER_UPS: PowerUpType[] = ['life_vest', 'tanod_whistle', 'bayanihan'];
+
+const GO_BAG_START_M = 150;
+const GO_BAG_END_M = COURSE_LENGTH_M - FINISH_CLEAR_M - 20;
+/** A Go-Bag item moves to another lane if a hazard in its lane is closer than this. */
+const GO_BAG_HAZARD_GAP_M = 8;
+
+export interface GoBagPlacement {
+  itemId: GoBagItemId;
+  z: number;
+  lane: LaneIndex;
 }
 
 /**
- * Deterministically generates a TrackChunk for a given chunk index and seed.
- * Both client and server share this logic to ensure 100% deterministic obstacle patterns.
+ * Where each of the 8 Go-Bag items sits for this seed: one per equal slice of the course,
+ * in a seeded order, lane and position.
+ */
+export function goBagPlan(seed: string): GoBagPlacement[] {
+  const rng = new Mulberry32(`${seed}_gobag`);
+  const order = GO_BAG_ITEMS.map((item) => item.id);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = rng.nextInt(0, i);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const slice = (GO_BAG_END_M - GO_BAG_START_M) / order.length;
+  return order.map((itemId, i) => ({
+    itemId,
+    z: GO_BAG_START_M + i * slice + slice * (0.15 + rng.next() * 0.7),
+    lane: rng.nextInt(0, 2) as LaneIndex,
+  }));
+}
+
+/**
+ * Deterministically generates the chunk at `chunkIndex` for `seed`. Client and server share it,
+ * so the course is identical everywhere. Chunks past the finish line are empty.
  */
 export function generateChunk(chunkIndex: number, seed: string): TrackChunk {
-  // Safe zone for first chunk (0 - 120m) so player can get ready
   const zStart = chunkIndex * CHUNK_LENGTH;
-  const biome = getBiomeForDistance(zStart);
-  
-  // Seed for this specific chunk is derived from the master seed and chunk index
-  const chunkSeed = `${seed}_chunk_${chunkIndex}`;
-  const rng = new Mulberry32(chunkSeed);
-
-  const obstacles: ObstacleEntity[] = [];
-  const collectibles: CollectibleEntity[] = [];
-
-  if (chunkIndex === 0) {
-    // Starting chunk: Only guide coins in center lane, no obstacles
-    for (let i = 0; i < 6; i++) {
-      collectibles.push({
-        id: `c_${chunkIndex}_coin_${i}`,
-        type: 'coin',
-        lane: 1,
-        zPos: zStart + 30 + i * 12,
-        yOffset: 0,
-        collected: false,
-      });
-    }
-    return {
-      id: `chunk_${chunkIndex}`,
-      zStart,
-      length: CHUNK_LENGTH,
-      biome,
-      obstacles,
-      collectibles,
-    };
-  }
-
-  // Difficulty scaling factor based on distance
-  const difficultyLevel = Math.min(3, Math.floor(zStart / 600)); // 0, 1, 2, 3
-  const obstacleDensity = 2 + Math.min(3, difficultyLevel); // 2 to 5 obstacle segments per chunk
-  const segmentSpacing = CHUNK_LENGTH / (obstacleDensity + 1);
-
-  for (let s = 1; s <= obstacleDensity; s++) {
-    const segmentZ = zStart + s * segmentSpacing + rng.nextInt(-4, 4);
-    const patternType = rng.nextInt(0, 4);
-
-    if (patternType === 0) {
-      // Single Lane Barrier (Low or High)
-      const lane = rng.nextInt(0, 2) as LaneIndex;
-      const isHigh = rng.nextBool(0.45);
-      const obsType: ObstacleType = isHigh ? 'barrier_high' : 'barrier_low';
-      obstacles.push({
-        id: `obs_${chunkIndex}_${s}_0`,
-        type: obsType,
-        lane,
-        zPos: segmentZ,
-        height: isHigh ? 65 : 32,
-        width: 1,
-        cleared: false,
-      });
-
-      // Coin arc in an open lane
-      const freeLane = ((lane + 1 + rng.nextInt(0, 1)) % 3) as LaneIndex;
-      for (let c = 0; c < 3; c++) {
-        collectibles.push({
-          id: `c_${chunkIndex}_${s}_${c}`,
-          type: 'coin',
-          lane: freeLane,
-          zPos: segmentZ - 10 + c * 8,
-          yOffset: 0,
-          collected: false,
-        });
-      }
-    } else if (patternType === 1) {
-      // Double Lane Pinch: Two lanes blocked, leaving one escape lane
-      const openLane = rng.nextInt(0, 2) as LaneIndex;
-      for (let l = 0; l <= 2; l++) {
-        if (l !== openLane) {
-          const isHigh = rng.nextBool(0.3);
-          obstacles.push({
-            id: `obs_${chunkIndex}_${s}_${l}`,
-            type: isHigh ? 'barrier_high' : 'barrier_low',
-            lane: l as LaneIndex,
-            zPos: segmentZ,
-            height: isHigh ? 65 : 32,
-            width: 1,
-            cleared: false,
-          });
-        }
-      }
-
-      // Reward coin in the open escape lane
-      collectibles.push({
-        id: `c_${chunkIndex}_${s}_reward`,
-        type: 'coin',
-        lane: openLane,
-        zPos: segmentZ,
-        yOffset: 0,
-        collected: false,
-      });
-    } else if (patternType === 2) {
-      // Pitfall / Chasm Void: One lane has collapsed track
-      const lane = rng.nextInt(0, 2) as LaneIndex;
-      obstacles.push({
-        id: `obs_${chunkIndex}_${s}_pit`,
-        type: 'pitfall',
-        lane,
-        zPos: segmentZ,
-        height: 10,
-        width: 1,
-        cleared: false,
-      });
-
-      // Airborne coins over the pitfall to reward jumping over it
-      collectibles.push({
-        id: `c_${chunkIndex}_${s}_air1`,
-        type: 'coin',
-        lane,
-        zPos: segmentZ - 4,
-        yOffset: 25,
-        collected: false,
-      });
-      collectibles.push({
-        id: `c_${chunkIndex}_${s}_air2`,
-        type: 'coin',
-        lane,
-        zPos: segmentZ + 4,
-        yOffset: 25,
-        collected: false,
-      });
-    } else if (patternType === 3 && difficultyLevel >= 1) {
-      // Moving Drone / Oncoming Train on high difficulty
-      const lane = rng.nextInt(0, 2) as LaneIndex;
-      obstacles.push({
-        id: `obs_${chunkIndex}_${s}_train`,
-        type: 'moving_train',
-        lane,
-        zPos: segmentZ,
-        height: 70,
-        width: 1,
-        cleared: false,
-      });
-    } else {
-      // High hurdle requiring slide
-      const lane = rng.nextInt(0, 2) as LaneIndex;
-      obstacles.push({
-        id: `obs_${chunkIndex}_${s}_high`,
-        type: 'barrier_high',
-        lane,
-        zPos: segmentZ,
-        height: 65,
-        width: 1,
-        cleared: false,
-      });
-    }
-  }
-
-  // Occasional Power-up drop (approx 25% chance per chunk)
-  if (rng.next() < 0.28) {
-    const powerUps: PowerUpType[] = ['coin_magnet', 'shield', 'overdrive_boost', 'multiplier_2x'];
-    const selectedPowerUp = rng.pick(powerUps);
-    const lane = rng.nextInt(0, 2) as LaneIndex;
-    collectibles.push({
-      id: `pw_${chunkIndex}_${selectedPowerUp}`,
-      type: selectedPowerUp,
-      lane,
-      zPos: zStart + rng.nextInt(20, 90),
-      yOffset: 12,
-      collected: false,
-    });
-  }
-
-  return {
+  const chunk: TrackChunk = {
     id: `chunk_${chunkIndex}`,
     zStart,
     length: CHUNK_LENGTH,
-    biome,
-    obstacles,
-    collectibles,
+    areaId: areaAt(zStart).id,
+    obstacles: [],
+    collectibles: [],
   };
+  if (zStart >= COURSE_LENGTH_M) return chunk;
+
+  const rng = new Mulberry32(`${seed}_chunk_${chunkIndex}`);
+
+  if (chunkIndex === 0) {
+    // Start: a line of supplies down the middle lane and no hazards
+    for (let i = 0; i < 6; i++) {
+      chunk.collectibles.push({ id: `c0_supply_${i}`, type: 'supply', lane: 1, zPos: 30 + i * 12, yOffset: 0, collected: false });
+    }
+  } else {
+    const segments = signalAt(zStart).hazardSegments;
+    const spacing = CHUNK_LENGTH / (segments + 1);
+    for (let s = 1; s <= segments; s++) {
+      const z = zStart + s * spacing + rng.nextInt(-4, 4);
+      if (z > COURSE_LENGTH_M - FINISH_CLEAR_M) break;
+      placePattern({
+        rng,
+        idPrefix: `c${chunkIndex}_${s}`,
+        z,
+        area: areaAt(z),
+        signal: signalAt(z),
+        obstacles: chunk.obstacles,
+        collectibles: chunk.collectibles,
+      });
+    }
+
+    if (rng.next() < POWER_UP_CHANCE) {
+      const type = rng.pick(POWER_UPS);
+      const z = zStart + rng.nextInt(20, 90);
+      if (z < COURSE_LENGTH_M - FINISH_CLEAR_M) {
+        chunk.collectibles.push({ id: `c${chunkIndex}_pw_${type}`, type, lane: rng.nextInt(0, 2) as LaneIndex, zPos: z, yOffset: 12, collected: false });
+      }
+    }
+  }
+
+  for (const item of goBagPlan(seed)) {
+    if (Math.floor(item.z / CHUNK_LENGTH) !== chunkIndex) continue;
+    chunk.collectibles.push(goBagCollectible(item, chunk));
+  }
+
+  return chunk;
+}
+
+function goBagCollectible(item: GoBagPlacement, chunk: TrackChunk): CollectibleEntity {
+  const blocked = (lane: number) =>
+    chunk.obstacles.some((o) => o.lane === lane && Math.abs(o.zPos - item.z) < GO_BAG_HAZARD_GAP_M);
+  let lane = item.lane;
+  for (let k = 0; k < 3 && blocked(lane); k++) lane = ((lane + 1) % 3) as LaneIndex;
+  return { id: `gobag_${item.itemId}`, type: 'gobag', itemId: item.itemId, lane, zPos: item.z, yOffset: 12, collected: false };
 }

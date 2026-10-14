@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { RunSubmissionPayload } from '../../shared/sim/types';
-import { RotateCcw, Share2, CheckCircle2, AlertTriangle, Trophy, Sparkles, Skull, Copy, Check } from 'lucide-react';
+import { RunResult } from '../../shared/sim/types';
+import { HAZARDS } from '../../shared/content/hazards';
+import { GO_BAG_ITEMS } from '../../shared/content/items';
+import { STARTING_HEARTS } from '../../shared/sim/constants';
+import { RotateCcw, Share2, CheckCircle2, AlertTriangle, Trophy, Sparkles, LifeBuoy, Copy, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface GameOverDialogProps {
   isOpen: boolean;
-  runData: RunSubmissionPayload | null;
+  runData: RunResult | null;
   validationStatus: { verified: boolean; reason: string; rank?: number } | null;
   ghostDeltaMeters: number;
   onRestart: () => void;
@@ -22,11 +25,9 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
-  if (!isOpen || !runData) return null;
-
-  // Trigger celebration confetti if new personal record or verified run
+  // Celebrate reaching the evacuation center. Hooks run before any early return.
   React.useEffect(() => {
-    if (runData.distance > 1000) {
+    if (isOpen && runData?.finished) {
       confetti({
         particleCount: 60,
         spread: 70,
@@ -34,19 +35,20 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({
         colors: ['#4cd7f6', '#fbabff', '#f7be1d'],
       });
     }
-  }, [runData]);
+  }, [isOpen, runData]);
+
+  if (!isOpen || !runData) return null;
+  const rescuedBy = runData.rescuedBy ? HAZARDS[runData.rescuedBy].name.en : null;
 
   // Generate spoiler-free scorecard summary
   const generateScorecard = () => {
-    return `🏃 ⚡ 💀 [NEON CHASM // SEED: ${runData.seed}]
-Distance: ${runData.distance.toLocaleString()}m
-Score: ${runData.score.toLocaleString()} PTS
-Near-Miss Sparks: ${runData.nearMisses}x
-Energy Orbs: ${runData.coins}
-Max Combo: x${runData.maxCombo}
-Duration: ${(runData.durationMs / 1000).toFixed(1)}s
-Cause of Death: ${runData.causeOfDeath || 'Lethal Hazard Impact'}
-Verified by Server-Authoritative Anti-Cheat 🛡️`;
+    return `Takbo! Bagyo Run · seed ${runData.seed}
+${runData.finished ? 'Reached the evacuation center' : `Rescued at ${runData.distance.toLocaleString()} m`}
+Score: ${runData.score.toLocaleString()}
+Hearts left: ${runData.heartsLeft}/${STARTING_HEARTS}
+Go-Bag: ${runData.goBagCount}/${GO_BAG_ITEMS.length}
+Supplies: ${runData.supplies} · Near misses: ${runData.nearMisses}
+Time: ${(runData.ticks / 60).toFixed(1)} s`;
   };
 
   const handleCopyScorecard = () => {
@@ -61,16 +63,16 @@ Verified by Server-Authoritative Anti-Cheat 🛡️`;
         {/* Header */}
         <div className="flex flex-col items-center text-center">
           <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-            <Skull className="w-8 h-8 text-red-400" />
+            {runData.finished ? <Trophy className="w-8 h-8 text-amber-300" /> : <LifeBuoy className="w-8 h-8 text-red-400" />}
           </div>
           <span className="font-mono text-xs uppercase tracking-widest text-red-400 font-bold mb-1">
-            AVIONICS TELEMETRY TERMINATED
+            {runData.finished ? 'Ligtas ka na!' : 'Na-rescue ka!'}
           </span>
           <h2 className="font-headline text-2xl md:text-3xl font-extrabold tracking-tight">
-            RUN DEBRIEF // KINETIC REPORT
+            {runData.finished ? 'You made it to the evacuation center' : 'Rescuers carried you the rest of the way'}
           </h2>
           <p className="font-mono text-xs text-gray-400 mt-1">
-            FATAL IMPACT: <span className="text-amber-400 font-bold">{runData.causeOfDeath || 'Track Obstacle Impact'}</span>
+            {rescuedBy ? (<>Last hit: <span className="text-amber-400 font-bold">{rescuedBy}</span></>) : (<>Hearts left: <span className="text-amber-400 font-bold">{runData.heartsLeft}/{STARTING_HEARTS}</span> · Go-Bag: <span className="text-amber-400 font-bold">{runData.goBagCount}/{GO_BAG_ITEMS.length}</span></>)}
           </p>
         </div>
 
@@ -79,7 +81,7 @@ Verified by Server-Authoritative Anti-Cheat 🛡️`;
           {/* Distance */}
           <div className="p-4 rounded-2xl bg-surface-container-high/80 border border-white/5 flex flex-col items-center justify-center">
             <span className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">
-              DISTANCE TRAVERSED
+              DISTANCE
             </span>
             <span className="font-mono text-3xl font-extrabold text-neon-cyan mt-1">
               {runData.distance.toLocaleString()}
@@ -101,7 +103,7 @@ Verified by Server-Authoritative Anti-Cheat 🛡️`;
           <div className="p-3 rounded-2xl bg-surface-container-high/60 border border-white/5 flex items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-fuchsia-400" />
-              <span className="font-mono text-xs text-gray-300">Near-Miss Sparks</span>
+              <span className="font-mono text-xs text-gray-300">Near misses</span>
             </div>
             <span className="font-mono text-sm font-bold text-fuchsia-300">
               {runData.nearMisses}x
@@ -112,10 +114,10 @@ Verified by Server-Authoritative Anti-Cheat 🛡️`;
           <div className="p-3 rounded-2xl bg-surface-container-high/60 border border-white/5 flex items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <span className="text-amber-400 text-sm">⚡</span>
-              <span className="font-mono text-xs text-gray-300">Orbs Collected</span>
+              <span className="font-mono text-xs text-gray-300">Supplies</span>
             </div>
             <span className="font-mono text-sm font-bold text-amber-300">
-              {runData.coins}
+              {runData.supplies}
             </span>
           </div>
         </div>

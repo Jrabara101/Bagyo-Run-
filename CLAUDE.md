@@ -53,5 +53,13 @@ npm run build      # production build
   `client/game/GameController.ts`, React bridge `client/game/useGame.ts`. Runs submit `inputLog`
   + `ticks`; `shared/sim/replay.ts` reproduces them. Server still verifies with `antiCheat.ts`
   (legacy telemetry) until Phase 6. `/ws` relay is disconnected on the client until Phase 2.
-- Next: Phase 2 — course with areas, signals, finish, hearts, Go-Bag, scoring.
+- Phase 2 (new rules) — done 2026-10-14. Fixed 2.5 km course (`shared/content/areas.ts`),
+  Signal 1→5 pace and density (`signals.ts`), 3 hearts, 8 Go-Bag items, score formula
+  (`shared/sim/scoring.ts`). Jump retuned in `shared/sim/constants.ts` (the original jump could
+  never clear a low barrier or a hole). Server replay verification (`server/verify.ts`) was
+  pulled forward from Phase 6 and `antiCheat.ts` deleted; the schema change and removing the
+  fake runs are still Phase 6.
+- Renderer and UI still use the old neon art with placeholder palettes per area (Phase 4/5).
+  Art direction samples: https://claude.ai/artifact/CMXHz71xEg78xw8YfCdciD
+- Next: Phase 3 — quiz gates.
 - The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

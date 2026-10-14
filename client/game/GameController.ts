@@ -1,35 +1,44 @@
 import {
   Action,
-  EndlessRunnerGameState,
+  AreaId,
   GameSettings,
+  HudState,
   InputEvent,
   LaneIndex,
+  RunResult,
+  RunStatus,
   RunSubmissionPayload,
   SimEvent,
   TelemetryPoint,
 } from '../../shared/sim/types';
 import { GameSimulation, TICK_MS } from '../../shared/sim/simulation';
-import { BASE_SPEED, MAX_SPEED, OVERDRIVE_SPEED_BOOST, FIXED_TIMESTEP_SEC } from '../../shared/sim/player';
-import { getBiomeForDistance } from '../../shared/sim/course';
-import { CanvasRenderer } from '../engine/canvasRenderer';
+import { FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants';
+import { SIGNALS } from '../../shared/content/signals';
+import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
+import { CanvasRenderer, RenderBiome } from '../engine/canvasRenderer';
 import { soundEngine } from '../engine/audio';
-
-export type ControllerStatus = 'IDLE' | 'RUNNING' | 'PAUSED' | 'CRASHED';
-type Biome = ReturnType<typeof getBiomeForDistance>;
 
 const HUD_SYNC_SEC = 0.065; // ~15 Hz
 const TELEMETRY_HEARTBEAT_MS = 100;
+const TOP_SPEED = SIGNALS[SIGNALS.length - 1].speed;
+
+// Placeholder palettes until the Phase 4 art replaces the renderer
+const AREA_PALETTE: Record<AreaId, RenderBiome> = {
+  barangay: 'neon_city',
+  estero: 'sky_bridge',
+  palayan: 'magma_vault',
+  evac: 'neon_city',
+};
+
+export interface HudSnapshot {
+  state: HudState;
+  ghostDeltaMeters: number;
+}
 
 export interface ControllerCallbacks {
   /** Throttled while running, and immediately on every status change. */
   onHud: (hud: HudSnapshot) => void;
-  onGameOver: (payload: RunSubmissionPayload) => void;
-}
-
-export interface HudSnapshot {
-  state: EndlessRunnerGameState;
-  biome: Biome;
-  ghostDeltaMeters: number;
+  onGameOver: (result: RunResult, submission: RunSubmissionPayload) => void;
 }
 
 /**
@@ -40,10 +49,10 @@ export class GameController {
   public settings: Pick<GameSettings, 'screenShake' | 'cameraTilt'> = { screenShake: 1, cameraTilt: 1 };
 
   private sim: GameSimulation;
-  private status: ControllerStatus = 'IDLE';
+  private status: RunStatus = 'IDLE';
   private inputLog: InputEvent[] = [];
 
-  // Legacy telemetry for server/antiCheat.ts until replay verification replaces it (Phase 6)
+  /** Sampled positions for ghost playback of this run. */
   private telemetry: TelemetryPoint[] = [];
 
   private ghostTelemetry: TelemetryPoint[] | null = null;
@@ -96,7 +105,7 @@ export class GameController {
   }
 
   public startRun() {
-    if (this.status === 'CRASHED') this.reset();
+    if (this.status === 'ENDED') this.reset();
     this.setStatus('RUNNING');
     soundEngine.startEngineHum();
   }
@@ -120,7 +129,7 @@ export class GameController {
     this.handleEvents(this.sim.input(action));
   }
 
-  private setStatus(status: ControllerStatus) {
+  private setStatus(status: RunStatus) {
     this.status = status;
     this.emitHud();
   }
@@ -134,7 +143,7 @@ export class GameController {
       this.accumulator += frameDeltaSec;
       while (this.accumulator >= FIXED_TIMESTEP_SEC && this.status === 'RUNNING') {
         this.handleEvents(this.sim.step());
-        soundEngine.updateEnginePitch(this.effectiveSpeed() / MAX_SPEED);
+        soundEngine.updateEnginePitch(this.sim.effectiveSpeed / TOP_SPEED);
         this.updateGhost();
         this.accumulator -= FIXED_TIMESTEP_SEC;
       }
@@ -154,8 +163,8 @@ export class GameController {
       sim.player,
       sim.playerZ,
       sim.chunks,
-      getBiomeForDistance(sim.playerZ),
-      sim.isOverdriveActive,
+      AREA_PALETTE[sim.areaId],
+      sim.isBayanihanActive,
       this.ghostTelemetry ? this.ghostZ : null,
       this.ghostTelemetry ? this.ghostLane : null,
       this.settings.screenShake,
@@ -180,10 +189,10 @@ export class GameController {
           soundEngine.playSlide();
           this.recordAction('slide');
           break;
-        case 'OVERDRIVE_STARTED':
+        case 'BAYANIHAN_STARTED':
           soundEngine.playOverdrive();
           this.renderer.triggerScreenShake(0.8);
-          this.recordAction('overdrive_trigger');
+          this.recordAction('bayanihan');
           break;
         case 'NEAR_MISS': {
           soundEngine.playNearMiss();
@@ -193,7 +202,7 @@ export class GameController {
           break;
         }
         case 'ITEM_COLLECTED':
-          if (event.itemId === 'coin') {
+          if (event.itemId === 'supply' || event.goBag) {
             soundEngine.playCoin();
             const p = this.playerScreenPos();
             this.renderer.addCoinBurst(p.x, p.y);
@@ -201,41 +210,41 @@ export class GameController {
             soundEngine.playNearMiss();
           }
           break;
+        case 'GO_BAG_COMPLETE':
+        case 'SIGNAL_UP':
+          soundEngine.playOverdrive();
+          break;
         case 'SHIELD_ABSORBED':
           soundEngine.playImpact();
           this.renderer.triggerScreenShake(0.6);
           break;
-        case 'CRASHED':
-          soundEngine.stopEngineHum();
+        case 'HAZARD_HIT':
           soundEngine.playImpact();
-          this.renderer.triggerScreenShake(1.5);
-          this.setStatus('CRASHED');
-          this.callbacks.onGameOver(this.submission());
+          this.renderer.triggerScreenShake(1.0);
+          this.emitHud();
+          break;
+        case 'FINISHED':
+        case 'RESCUED':
+          soundEngine.stopEngineHum();
+          if (event.type === 'RESCUED') this.renderer.triggerScreenShake(1.5);
+          this.setStatus('ENDED');
+          this.callbacks.onGameOver(this.sim.result(), this.submission());
+          break;
+        case 'AREA_ENTERED':
+          this.emitHud();
           break;
       }
     }
   }
 
   private submission(): RunSubmissionPayload {
-    const result = this.sim.result();
     return {
-      seed: result.seed,
-      playerName: 'PILOT-01',
-      distance: result.distance,
-      score: result.score,
-      coins: result.coins,
-      nearMisses: result.nearMisses,
-      maxCombo: result.maxCombo,
-      durationMs: Math.floor(this.sim.elapsedMs),
-      causeOfDeath: result.causeOfDeath,
-      inputTelemetry: this.telemetry,
+      seed: this.sim.seed,
+      playerName: 'RUNNER',
       inputLog: this.inputLog,
-      ticks: result.ticks,
+      ticks: this.sim.tick,
+      inputTelemetry: this.telemetry,
     };
-  }
-
-  private effectiveSpeed() {
-    return this.sim.currentSpeed + (this.sim.isOverdriveActive ? OVERDRIVE_SPEED_BOOST : 0);
   }
 
   private playerScreenPos() {
@@ -269,27 +278,31 @@ export class GameController {
     const points = this.ghostTelemetry;
     if (!points || points.length === 0) return;
     const target = this.sim.elapsedMs;
-    const closest = points.find((p) => p.timeMs >= target) ?? points[0];
+    const closest = points.find((p) => p.timeMs >= target) ?? points[points.length - 1];
     this.ghostZ = closest.z;
     this.ghostLane = closest.lane;
   }
 
   private emitHud() {
     const sim = this.sim;
-    const distance = Math.floor(sim.playerZ);
+    const distance = Math.floor(Math.min(sim.playerZ, COURSE_LENGTH_M));
     this.callbacks.onHud({
-      biome: getBiomeForDistance(distance),
       ghostDeltaMeters: this.ghostTelemetry ? Math.floor(distance - this.ghostZ) : 0,
       state: {
         status: this.status,
         seed: sim.seed,
         distanceMeters: distance,
-        currentSpeed: sim.currentSpeed,
+        courseMeters: COURSE_LENGTH_M,
+        currentSpeed: sim.effectiveSpeed,
         score: sim.score,
-        coinsCollected: sim.coins,
+        hearts: sim.hearts,
+        signal: sim.signal,
+        areaId: sim.areaId,
+        supplies: sim.supplies,
+        goBag: [...sim.goBag],
         nearMissCount: sim.nearMisses,
-        overdriveGauge: Number(sim.overdriveGauge.toFixed(1)),
-        isOverdriveActive: sim.isOverdriveActive,
+        bayanihanGauge: Number(sim.bayanihanGauge.toFixed(1)),
+        isBayanihanActive: sim.isBayanihanActive,
         activePowerUps: sim.powerUps.map((p) => ({ type: p.type, expiresAtMs: p.expiresAtTick * TICK_MS })),
         ghostDistanceMeters: Math.floor(this.ghostZ),
       },
@@ -298,18 +311,22 @@ export class GameController {
 }
 
 export const INITIAL_HUD = (seed: string): HudSnapshot => ({
-  biome: 'neon_city',
   ghostDeltaMeters: 0,
   state: {
     status: 'IDLE',
     seed,
     distanceMeters: 0,
-    currentSpeed: BASE_SPEED,
+    courseMeters: COURSE_LENGTH_M,
+    currentSpeed: SIGNALS[0].speed,
     score: 0,
-    coinsCollected: 0,
+    hearts: STARTING_HEARTS,
+    signal: 1,
+    areaId: AREAS[0].id,
+    supplies: 0,
+    goBag: [],
     nearMissCount: 0,
-    overdriveGauge: 0,
-    isOverdriveActive: false,
+    bayanihanGauge: 0,
+    isBayanihanActive: false,
     activePowerUps: [],
     ghostDistanceMeters: 0,
   },

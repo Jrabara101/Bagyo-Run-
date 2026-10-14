@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameSettings } from '../types/game';
+import { GameSettings } from '../../shared/sim/types';
 import { X, Volume2, Sliders, Shield, RotateCcw, Play, Keyboard } from 'lucide-react';
 
 interface PauseSheetProps {

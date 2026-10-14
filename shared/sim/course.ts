@@ -1,5 +1,5 @@
-import { TrackChunk, ObstacleEntity, CollectibleEntity, LaneIndex, ObstacleType, PowerUpType } from '../types/game';
-import { Mulberry32 } from './prng';
+import { TrackChunk, ObstacleEntity, CollectibleEntity, LaneIndex, ObstacleType, PowerUpType } from './types';
+import { Mulberry32 } from './rng';
 
 export const CHUNK_LENGTH = 120; // 120 meters per chunk
 export const BIOME_TRANSITION_INTERVAL = 1000; // 1,000 meters per biome

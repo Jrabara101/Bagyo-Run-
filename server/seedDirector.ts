@@ -1,4 +1,4 @@
-import { Mulberry32 } from '../src/engine/prng.js';
+import { Mulberry32 } from '../shared/sim/rng.js';
 import { db } from './db.js';
 
 export interface DailySeedData {

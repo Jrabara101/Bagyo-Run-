@@ -1,10 +1,10 @@
-import { TelemetryPoint } from '../src/types/game.js';
-import { generateChunk, CHUNK_LENGTH } from '../src/engine/chunkGenerator.js';
+import { TelemetryPoint } from '../shared/sim/types.js';
+import { generateChunk, CHUNK_LENGTH } from '../shared/sim/course.js';
 import {
   BASE_SPEED,
   MAX_SPEED,
   OVERDRIVE_SPEED_BOOST,
-} from '../src/engine/kinematicController.js';
+} from '../shared/sim/player.js';
 
 export interface ValidationResult {
   verified: boolean;

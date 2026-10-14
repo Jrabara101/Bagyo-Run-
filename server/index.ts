@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { SeedDirector } from './seedDirector.js';
 import { AntiCheatValidator } from './antiCheat.js';
 import { ghostRelay } from './websocket.js';
-import { RunSubmissionPayload, LeaderboardRecord } from '../src/types/game.js';
+import { RunSubmissionPayload, LeaderboardRecord } from '../shared/sim/types.js';
 
 const fastify = Fastify({
   logger: true,

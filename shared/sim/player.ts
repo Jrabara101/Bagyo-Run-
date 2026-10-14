@@ -1,4 +1,4 @@
-import { LaneIndex, PlayerPhysicsState, ObstacleEntity, CollectibleEntity, EndlessRunnerGameState, TelemetryPoint } from '../types/game';
+import { LaneIndex, PlayerPhysicsState, ObstacleEntity, CollectibleEntity, EndlessRunnerGameState, TelemetryPoint } from './types';
 
 export const FIXED_TIMESTEP_SEC = 1 / 60; // 60Hz physics (16.667ms)
 export const LANE_X_POSITIONS: Record<LaneIndex, number> = {

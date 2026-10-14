@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RunSubmissionPayload } from '../types/game';
+import { RunSubmissionPayload } from '../../shared/sim/types';
 import { RotateCcw, Share2, CheckCircle2, AlertTriangle, Trophy, Sparkles, Skull, Copy, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
 

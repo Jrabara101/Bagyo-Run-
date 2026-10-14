@@ -7,7 +7,7 @@ import {
   TelemetryPoint,
   GameSettings,
   RunSubmissionPayload,
-} from '../types/game';
+} from '../../shared/sim/types';
 import {
   KinematicController,
   BASE_SPEED,
@@ -15,8 +15,8 @@ import {
   SPEED_ACCELERATION,
   OVERDRIVE_SPEED_BOOST,
   FIXED_TIMESTEP_SEC,
-} from '../engine/kinematicController';
-import { generateChunk, CHUNK_LENGTH, getBiomeForDistance } from '../engine/chunkGenerator';
+} from '../../shared/sim/player';
+import { generateChunk, CHUNK_LENGTH, getBiomeForDistance } from '../../shared/sim/course';
 import { CanvasRenderer } from '../engine/canvasRenderer';
 import { soundEngine } from '../engine/audio';
 

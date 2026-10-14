@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LeaderboardRecord } from '../types/game';
+import { LeaderboardRecord } from '../../shared/sim/types';
 import { Trophy, X, ShieldCheck, Ghost, Flame, Sparkles } from 'lucide-react';
 
 interface LeaderboardModalProps {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { GameSettings } from '../types/game';
+import { GameSettings } from '../../shared/sim/types';
 
 interface InputControlHandlers {
   onShiftLane: (direction: -1 | 1) => void;

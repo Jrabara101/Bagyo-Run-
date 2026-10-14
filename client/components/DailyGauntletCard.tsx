@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DailySeedConfig } from '../types/game';
+import { DailySeedConfig } from '../../shared/sim/types';
 import { Calendar, Trophy, Link, Check, Zap, Play, X, Compass } from 'lucide-react';
 
 interface DailyGauntletCardProps {

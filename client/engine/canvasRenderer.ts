@@ -1,5 +1,5 @@
-import { TrackChunk, ObstacleEntity, CollectibleEntity, PlayerPhysicsState, LaneIndex } from '../types/game';
-import { LANE_X_POSITIONS } from './kinematicController';
+import { TrackChunk, ObstacleEntity, CollectibleEntity, PlayerPhysicsState, LaneIndex } from '../../shared/sim/types';
+import { LANE_X_POSITIONS } from '../../shared/sim/player';
 
 export interface RenderParticle {
   x: number;

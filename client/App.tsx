@@ -6,7 +6,7 @@ import { PauseSheet } from './components/PauseSheet';
 import { GameOverDialog } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
 import { LeaderboardModal } from './components/LeaderboardModal';
-import { GameSettings, RunSubmissionPayload, DailySeedConfig } from './types/game';
+import { GameSettings, RunSubmissionPayload, DailySeedConfig } from '../shared/sim/types';
 import {
   Play,
   RotateCcw,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { EndlessRunnerGameState } from '../types/game';
+import { EndlessRunnerGameState } from '../../shared/sim/types';
 import { Zap, Shield, Magnet, Rocket, Play, Pause, Volume2, VolumeX, Flame } from 'lucide-react';
 
 interface HUDOverlayProps {

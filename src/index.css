@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background-color: #000f21;
+    color: #d3e4fe;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* Custom Cyber Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #000f21;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1b2b3f;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4cd7f6;
+  }
+}
+
+/* Glassmorphism Cyber utilities */
+.glass-panel {
+  background: rgba(11, 28, 48, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(76, 215, 246, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 15, 33, 0.65);
+}
+
+.glass-panel-glow {
+  background: rgba(16, 32, 52, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(76, 215, 246, 0.4);
+  box-shadow: 0 0 25px rgba(76, 215, 246, 0.25), 0 8px 32px rgba(0, 15, 33, 0.8);
+}
+
+.text-neon-cyan {
+  color: #4cd7f6;
+  text-shadow: 0 0 12px rgba(76, 215, 246, 0.7);
+}
+
+.text-neon-pink {
+  color: #fbabff;
+  text-shadow: 0 0 12px rgba(251, 171, 255, 0.7);
+}
+
+.text-neon-amber {
+  color: #f7be1d;
+  text-shadow: 0 0 12px rgba(247, 190, 29, 0.7);
+}

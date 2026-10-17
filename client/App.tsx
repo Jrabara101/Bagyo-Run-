@@ -1,29 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from './game/useGame';
+import { PRACTICE_SEED } from './game/GameController';
 import { useInputControls } from './hooks/useInputControls';
 import { HUDOverlay } from './components/HUDOverlay';
 import { PauseSheet } from './components/PauseSheet';
-import { GameOverDialog } from './components/GameOverDialog';
+import { GameOverDialog, VerifyState } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { QuizGateBanner } from './components/QuizGateBanner';
-import type { Lang } from '../shared/content/questions';
+import { TitleScreen } from './components/screens/TitleScreen';
+import { HowToPlay } from './components/screens/HowToPlay';
+import { Credits } from './components/screens/Credits';
+import { audio } from './audio/AudioEngine';
+import { Lang, UI, UiKey } from '../shared/content/i18n';
 import { GameSettings, RunResult, RunSubmissionPayload, RunVerifyResponse, DailySeedConfig } from '../shared/sim/types';
-import {
-  Play,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Sliders,
-  Maximize2,
-  Calendar,
-  Trophy,
-  Flame,
-  Radio,
-  Gamepad2,
-  Smartphone,
-  ChevronRight,
-} from 'lucide-react';
+import { Volume2, VolumeX, Settings, Maximize2, Calendar, Trophy, Radio, Lightbulb } from 'lucide-react';
 
 const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 0.7,
@@ -38,16 +29,27 @@ const DEFAULT_SETTINGS: GameSettings = {
   keyOverdrive: ' ',
 };
 
-const TITLE_TEXT = {
-  kicker: { en: 'A typhoon-preparedness runner', fil: 'Takbuhan ng paghahanda sa bagyo' },
-  intro: {
-    en: 'Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. At each quiz gate, run into the lane with the right answer. You have 3 hearts.',
-    fil: 'Tumakbo mula sa bahay papunta sa evacuation center habang lumalakas ang bagyo mula Signal No. 1 hanggang 5. Tumalon, dumausdos at lumipat ng lane para iwasan ang panganib, mangolekta ng suplay, at kumpletuhin ang 8 gamit sa Go-Bag. Sa bawat quiz gate, tumakbo sa lane ng tamang sagot. May 3 puso ka.',
-  },
-  play: { en: 'Takbo! · SPACE', fil: 'Takbo! · SPACE' },
-  keyboard: { en: 'KEYBOARD: WASD / ARROWS', fil: 'KEYBOARD: WASD / ARROW KEYS' },
-  mobile: { en: 'MOBILE: SWIPE & TAP', fil: 'MOBILE: I-SWIPE AT I-TAP' },
-};
+const SETTINGS_KEY = 'bagyo-settings';
+const LANG_KEY = 'bagyo-lang';
+const MUTE_KEY = 'bagyo-muted';
+
+type Screen = 'title' | 'howto' | 'credits';
+
+function readStored<T>(key: string, fallback: T, parse: (raw: string) => T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage blocked: the choice lasts for this page only
+  }
+}
 
 export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -56,32 +58,56 @@ export function App() {
   // Read URL seed parameter if provided (e.g. ?seed=...)
   const initialUrlSeed = new URLSearchParams(window.location.search).get('seed') || 'SEED-DAILY-GAUNTLET';
 
-  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [settings, setSettings] = useState<GameSettings>(() =>
+    readStored(SETTINGS_KEY, DEFAULT_SETTINGS, (raw) => ({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) }))
+  );
+  const [lang, setLang] = useState<Lang>(() => readStored<Lang>(LANG_KEY, 'en', (raw) => (raw === 'fil' ? 'fil' : 'en')));
+  const [isAudioMuted, setIsAudioMuted] = useState(() => readStored(MUTE_KEY, false, (raw) => raw === '1'));
+  const [screen, setScreen] = useState<Screen>('title');
   const [isPauseOpen, setIsPauseOpen] = useState(false);
   const [isDailyCardOpen, setIsDailyCardOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
 
   const [dailyConfig, setDailyConfig] = useState<DailySeedConfig | null>(null);
   const [lastResult, setLastResult] = useState<RunResult | null>(null);
-  const [validationStatus, setValidationStatus] = useState<{ verified: boolean; reason: string; rank?: number } | null>(null);
+  const [verify, setVerify] = useState<{ state: VerifyState; reason?: string; rank?: number } | null>(null);
   const [isServerConnected, setIsServerConnected] = useState<boolean>(false);
-  const [lang, setLang] = useState<Lang>(() => {
-    try {
-      return localStorage.getItem('bagyo-lang') === 'fil' ? 'fil' : 'en';
-    } catch {
-      return 'en';
-    }
-  });
+  const t = (key: UiKey) => UI[key][lang];
+
   const toggleLang = () => {
     const next: Lang = lang === 'en' ? 'fil' : 'en';
     setLang(next);
-    try {
-      localStorage.setItem('bagyo-lang', next);
-    } catch {
-      // Storage blocked: the choice lasts for this page only
-    }
+    store(LANG_KEY, next);
   };
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'fil' ? 'fil' : 'en';
+  }, [lang]);
+
+  useEffect(() => {
+    store(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    audio.setMuted(isAudioMuted);
+    store(MUTE_KEY, isAudioMuted ? '1' : '0');
+  }, [isAudioMuted]);
+
+  // Browsers only allow sound after a user gesture: start the title music on the first one
+  useEffect(() => {
+    const unlock = () => {
+      audio.unlock();
+      audio.setMusicLevel(statusRef.current === 'RUNNING' ? 'run' : 'menu');
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   // Fetch Daily Seed Config from Backend on mount with retry
   useEffect(() => {
@@ -99,12 +125,7 @@ export function App() {
         })
         .catch(() => {
           if (isMounted) {
-            setDailyConfig((prev) => prev || {
-              seed: 'GAUNTLET-2026-09-28-9042',
-              dateKey: 'DAILY-2026-09-28',
-              dailyTitle: 'CHASM RUNNER: ZERO HORIZON',
-              dailyModifiers: ['Slipstream Overdrive: +25% Duration', 'Near-Miss Spark Multiplier: 1.5x Bonus'],
-            });
+            setDailyConfig((prev) => prev || { seed: initialUrlSeed, dateKey: '', dailyTitle: '', dailyModifiers: [] });
             // Retry after 3 seconds in case backend server is initializing
             retryTimer = setTimeout(fetchDaily, 3000);
           }
@@ -135,10 +156,14 @@ export function App() {
     };
   }, []);
 
-  // Submit the input log; the server replays it and returns its own result
+  // Submit the input log; the server replays it and returns its own result. Practice runs stay local.
   const handleGameOverSubmission = (result: RunResult, payload: RunSubmissionPayload) => {
     setLastResult(result);
-    setValidationStatus({ verified: false, reason: 'Replaying your run on the server...' });
+    if (payload.seed === PRACTICE_SEED) {
+      setVerify({ state: 'practice' });
+      return;
+    }
+    setVerify({ state: 'checking' });
 
     fetch('/api/runs/verify', {
       method: 'POST',
@@ -148,23 +173,19 @@ export function App() {
       .then((res) => res.json() as Promise<RunVerifyResponse>)
       .then((res) => {
         const matches = res.verified && res.result?.score === result.score;
-        setValidationStatus({
-          verified: matches,
-          reason: matches ? res.reason : res.verified ? 'Server replay gave a different score' : res.reason,
-          rank: res.rank,
-        });
+        setVerify({ state: matches ? 'verified' : res.verified ? 'mismatch' : 'rejected', reason: res.reason, rank: res.rank });
       })
-      .catch(() => {
-        setValidationStatus({ verified: false, reason: 'Offline: this run was not submitted' });
-      });
+      .catch(() => setVerify({ state: 'offline' }));
   };
 
-  // Instantiate Core Game Loop Hook
   const {
     gameState,
     ghostDeltaMeters,
     gateFeedback,
+    practice,
+    coach,
     startGame,
+    startPractice,
     pauseGame,
     resumeGame,
     resetGame,
@@ -175,7 +196,32 @@ export function App() {
     loadGhostTelemetry,
   } = useGame(canvasRef, initialUrlSeed, settings, handleGameOverSubmission);
 
-  // Setup Universal Controls (Keyboard, Mobile Swipe, Gamepad)
+  const statusRef = useRef(gameState.status);
+  statusRef.current = gameState.status;
+
+  const openPause = () => {
+    if (gameState.status === 'RUNNING') pauseGame();
+    setIsPauseOpen(true);
+  };
+  const closePause = () => {
+    setIsPauseOpen(false);
+    if (gameState.status === 'PAUSED') resumeGame();
+  };
+  const backToTitle = () => {
+    setIsPauseOpen(false);
+    setIsLeaderboardOpen(false);
+    resetGame();
+    setScreen('title');
+  };
+  const restart = () => {
+    setIsPauseOpen(false);
+    if (practice) startPractice();
+    else {
+      resetGame();
+      startGame();
+    }
+  };
+
   useInputControls(
     {
       onShiftLane: handleShiftLane,
@@ -183,18 +229,28 @@ export function App() {
       onSlide: handleSlide,
       onOverdrive: triggerOverdrive,
       onPauseToggle: () => {
-        if (gameState.status === 'RUNNING') {
-          pauseGame();
-          setIsPauseOpen(true);
-        } else if (gameState.status === 'PAUSED') {
-          resumeGame();
-          setIsPauseOpen(false);
-        }
+        if (gameState.status === 'RUNNING') openPause();
+        else if (gameState.status === 'PAUSED') closePause();
       },
     },
     settings,
-    gameState.status === 'RUNNING' || gameState.status === 'IDLE'
+    gameState.status === 'RUNNING' || gameState.status === 'PAUSED'
   );
+
+  // SPACE / ENTER on the title screen starts a run (a focused button handles its own keys)
+  const modalOpen = isPauseOpen || isDailyCardOpen || isLeaderboardOpen;
+  useEffect(() => {
+    if (gameState.status !== 'IDLE' || screen !== 'title' || modalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest('button, input, a')) return;
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        startGame();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gameState.status, screen, modalOpen, startGame]);
 
   // Resize canvas on window resize
   useEffect(() => {
@@ -240,208 +296,139 @@ export function App() {
       });
   };
 
+  const inRun = gameState.status === 'RUNNING' || gameState.status === 'PAUSED';
+
   return (
-    <div className="flex flex-col min-h-screen bg-[#000f21] text-[#d3e4fe]">
-      {/* ========================================================================= */}
-      {/* TOP FLIGHT DECK HEADER                                                    */}
-      {/* ========================================================================= */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-[#000f21]/90 backdrop-blur-xl border-b border-cyan-500/20 shadow-[0_1px_12px_rgba(0,0,0,0.5)]">
-        <div className="h-16 w-full px-4 md:px-8 flex items-center justify-between">
-          {/* Logo & Seed Indicator */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-fuchsia-500 p-0.5 shadow-[0_0_15px_rgba(76,215,246,0.4)] flex items-center justify-center">
-              <Flame className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-headline text-base md:text-lg font-black tracking-wider uppercase text-white flex items-center gap-2">
-                <span className="font-display font-normal text-[#f2c230]">TAKBO!</span> <span className="text-gray-300 font-mono text-xs">BAGYO RUN</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-gray-400 uppercase tracking-widest">
-                  SEED
-                </span>
-                <span className="font-mono text-[10px] text-cyan-400 font-bold tracking-wider">
-                  {gameState.seed}
-                </span>
-              </div>
-            </div>
+    <div className="flex flex-col min-h-screen bg-[#15141f] text-[#f1ebdd]">
+      <header className="fixed top-0 left-0 right-0 z-40 bg-[#15141f]/95 border-b border-[#2f2d42]">
+        <div className="h-14 w-full px-3 md:px-8 flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="takbo-logo font-display text-xl md:text-2xl leading-none">TAKBO!</span>
+            <span className="font-display text-xs md:text-sm text-white">BAGYO RUN</span>
+            <span className="hidden lg:inline font-mono text-[10px] text-[#aaa6b8] truncate ml-2">
+              {t('seed')}: {gameState.seed}
+            </span>
           </div>
 
-          {/* Center Navigation Actions */}
-          <div className="hidden md:flex items-center gap-2">
-            <button
-              onClick={() => setIsDailyCardOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest font-mono text-xs text-gray-300 hover:text-white uppercase tracking-wider flex items-center gap-2 border border-white/5 transition-colors"
-            >
-              <Calendar className="w-4 h-4 text-cyan-400" />
-              Daily Gauntlet
+          <nav className="hidden md:flex items-center gap-2">
+            <button onClick={() => setIsDailyCardOpen(true)} className="btn-plain px-3 py-1.5 text-[11px] flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#f2c230]" /> {t('daily')}
             </button>
-            <button
-              onClick={() => setIsLeaderboardOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest font-mono text-xs text-gray-300 hover:text-white uppercase tracking-wider flex items-center gap-2 border border-white/5 transition-colors"
-            >
-              <Trophy className="w-4 h-4 text-amber-400" />
-              Leaderboards
+            <button onClick={() => setIsLeaderboardOpen(true)} className="btn-plain px-3 py-1.5 text-[11px] flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-[#f2c230]" /> {t('leaderboard')}
             </button>
-          </div>
+          </nav>
 
-          {/* Right Status Cluster */}
-          <div className="flex items-center gap-3">
-            {/* Live Peer Pilots Count & Server Status */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-surface-container-high rounded-full border border-white/5 font-mono text-xs">
-              <Radio className={`w-3.5 h-3.5 ${isServerConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
-              <span className="text-gray-300 font-bold">
-                {isServerConnected ? 'SERVER ONLINE' : 'OFFLINE MODE'}
-              </span>
-            </div>
-
-            {/* Language Toggle */}
-            <button
-              onClick={toggleLang}
-              className="px-2.5 py-1.5 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest font-mono text-xs font-bold border border-white/5 transition-colors"
-              title={lang === 'en' ? 'Lumipat sa Filipino' : 'Switch to English'}
-              aria-label={lang === 'en' ? 'Lumipat sa Filipino' : 'Switch to English'}
-            >
-              <span className={lang === 'en' ? 'text-white' : 'text-gray-500'}>EN</span>
-              <span className="text-gray-600"> / </span>
-              <span className={lang === 'fil' ? 'text-white' : 'text-gray-500'}>FIL</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#2f2d42] text-[11px] font-semibold">
+              <Radio className={`w-3.5 h-3.5 ${isServerConnected ? 'text-[#6cc070]' : 'text-[#f0862a]'}`} />
+              {isServerConnected ? t('serverOnline') : t('offline')}
+            </span>
+            <button onClick={toggleLang} className="btn-icon px-2.5 py-1.5 font-display text-[11px]" title={t('switchLang')} aria-label={t('switchLang')}>
+              <span className={lang === 'en' ? 'text-[#f2c230]' : 'text-white/50'}>EN</span>
+              <span className="text-white/30"> / </span>
+              <span className={lang === 'fil' ? 'text-[#f2c230]' : 'text-white/50'}>FIL</span>
             </button>
-
-            {/* Audio Toggle */}
             <button
               onClick={() => setIsAudioMuted(!isAudioMuted)}
-              className="p-2 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest text-gray-300 hover:text-white border border-white/5 transition-colors"
-              title="Toggle Audio"
+              className="btn-icon p-2"
+              title={isAudioMuted ? t('unmute') : t('mute')}
+              aria-label={isAudioMuted ? t('unmute') : t('mute')}
             >
-              {isAudioMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
+              {isAudioMuted ? <VolumeX className="w-4 h-4 text-[#ff5a4e]" /> : <Volume2 className="w-4 h-4" />}
             </button>
-
-            {/* Settings Drawer Button */}
-            <button
-              onClick={() => setIsPauseOpen(true)}
-              className="p-2 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest text-gray-300 hover:text-white border border-white/5 transition-colors"
-              title="Settings & Keybindings"
-            >
-              <Sliders className="w-4 h-4 text-cyan-400" />
+            <button onClick={openPause} className="btn-icon p-2" title={t('settings')} aria-label={t('settings')}>
+              <Settings className="w-4 h-4" />
             </button>
-
-            {/* Fullscreen Button */}
-            <button
-              onClick={handleToggleFullscreen}
-              className="p-2 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest text-gray-300 hover:text-white border border-white/5 transition-colors"
-              title="Toggle Fullscreen"
-            >
+            <button onClick={handleToggleFullscreen} className="btn-icon p-2" title={t('fullscreen')} aria-label={t('fullscreen')}>
               <Maximize2 className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* ========================================================================= */}
-      {/* LIVE VIEWPORT & RUNNER CANVAS CONTAINER                                  */}
-      {/* ========================================================================= */}
-      <main className="w-full pt-16 flex-1 flex flex-col items-center justify-center p-2 md:p-6 bg-[#000f21]">
+      <main className="w-full pt-16 flex-1 flex flex-col items-center justify-center px-2 pb-2 md:px-5">
         <div
           ref={containerRef}
-          className="relative w-full max-w-7xl aspect-[16/9] min-h-[580px] max-h-[860px] bg-[#020713] rounded-3xl overflow-hidden border border-cyan-500/20 shadow-[0_0_50px_rgba(0,15,33,0.9)] select-none"
+          className="relative w-full max-w-7xl h-[min(calc(100vh-5.5rem),56.25vw,860px)] min-h-[420px] bg-[#15141f] rounded-xl overflow-hidden border border-[#2f2d42] select-none"
         >
-          {/* Main 2D Canvas Engine */}
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
-          {/* Glassmorphic HUD Layer */}
-          {gameState.status !== 'IDLE' && (
+          {inRun && (
             <HUDOverlay
               gameState={gameState}
               ghostDeltaMeters={ghostDeltaMeters}
+              lang={lang}
+              practice={practice}
               isAudioMuted={isAudioMuted}
-              activePilotsCount={1}
               onToggleAudio={() => setIsAudioMuted(!isAudioMuted)}
-              onPauseToggle={() => {
-                if (gameState.status === 'RUNNING') pauseGame();
-                else if (gameState.status === 'PAUSED') resumeGame();
-              }}
+              onPauseToggle={openPause}
               onTriggerOverdrive={triggerOverdrive}
             />
           )}
 
-          {(gameState.status === 'RUNNING' || gameState.status === 'PAUSED') && (
-            <QuizGateBanner gate={gameState.gate} feedback={gateFeedback} gatesTotal={gameState.gatesTotal} lang={lang} />
-          )}
+          {inRun && <QuizGateBanner gate={gameState.gate} feedback={gateFeedback} gatesTotal={gameState.gatesTotal} lang={lang} />}
 
-          {/* Instant Sprint Onboarding Splash Screen (When IDLE) */}
-          {gameState.status === 'IDLE' && (
-            <div className="absolute inset-0 z-30 flex flex-col justify-center p-6 md:p-12 bg-gradient-to-r from-[#15141f]/85 via-[#15141f]/40 to-transparent">
-              <div className="flex flex-col items-start max-w-xl text-left animate-in fade-in duration-500">
-                <span className="font-body text-xs md:text-sm font-bold uppercase tracking-widest text-[#ffe2b0]">
-                  {TITLE_TEXT.kicker[lang]}
-                </span>
-                <h1 className="takbo-logo font-display text-7xl md:text-8xl leading-none mt-1">TAKBO!</h1>
-                <span className="relative inline-block mt-3 px-3 pt-1.5 pb-2.5 bg-[#15141f] rounded font-display text-xl md:text-2xl text-white overflow-hidden">
-                  BAGYO RUN
-                  <span className="banig-trim absolute inset-x-0 bottom-0 h-1.5" aria-hidden="true" />
-                </span>
-                <p className="font-body text-sm md:text-base text-gray-100 mt-5 max-w-md drop-shadow">{TITLE_TEXT.intro[lang]}</p>
-
-                {/* Primary Launch Action */}
-                <button
-                  onClick={startGame}
-                  className="mt-7 px-7 py-3.5 rounded-lg bg-[#d6402b] border-2 border-[#f2c230] shadow-[5px_5px_0_#2b5fb8] text-white font-display text-lg md:text-xl flex items-center gap-3 hover:brightness-110 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[3px_3px_0_#2b5fb8] transition-all"
-                >
-                  <Play className="w-5 h-5 fill-white" /> {TITLE_TEXT.play[lang]}
-                </button>
-
-                {/* Universal Control Parity Badges */}
-                <div className="mt-6 flex flex-wrap items-center gap-3 font-mono text-xs text-gray-200">
-                  <div className="px-3 py-1.5 rounded-lg bg-[#15141f]/75 border border-white/15 flex items-center gap-2">
-                    <Gamepad2 className="w-4 h-4 text-[#f2c230]" />
-                    <span>{TITLE_TEXT.keyboard[lang]}</span>
-                  </div>
-                  <div className="px-3 py-1.5 rounded-lg bg-[#15141f]/75 border border-white/15 flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-[#f2c230]" />
-                    <span>{TITLE_TEXT.mobile[lang]}</span>
-                  </div>
-                </div>
+          {gameState.status === 'RUNNING' && coach && coach !== 'coachGate' && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-[24%] z-20 pointer-events-none" role="status" aria-live="polite">
+              <div className="px-4 py-2 rounded-lg bg-[#2b5fb8] border-2 border-[#f2c230] shadow-[4px_4px_0_#15141f] font-display text-sm md:text-base text-white flex items-center gap-2 animate-in fade-in">
+                <Lightbulb className="w-4 h-4 text-[#f2c230]" /> {t(coach)}
               </div>
             </div>
           )}
 
+          {gameState.status === 'IDLE' && screen === 'title' && (
+            <TitleScreen
+              lang={lang}
+              onPlay={startGame}
+              onPractice={startPractice}
+              onHowTo={() => setScreen('howto')}
+              onDaily={() => setIsDailyCardOpen(true)}
+              onLeaderboard={() => setIsLeaderboardOpen(true)}
+              onSettings={openPause}
+              onCredits={() => setScreen('credits')}
+            />
+          )}
+          {gameState.status === 'IDLE' && screen === 'howto' && (
+            <HowToPlay
+              lang={lang}
+              onBack={() => setScreen('title')}
+              onPractice={() => {
+                setScreen('title');
+                startPractice();
+              }}
+            />
+          )}
+          {gameState.status === 'IDLE' && screen === 'credits' && <Credits lang={lang} onBack={() => setScreen('title')} />}
         </div>
       </main>
 
-      {/* ========================================================================= */}
-      {/* MODALS & DRAWERS                                                          */}
-      {/* ========================================================================= */}
       <PauseSheet
         isOpen={isPauseOpen}
+        paused={gameState.status === 'PAUSED'}
+        lang={lang}
+        onToggleLang={toggleLang}
         settings={settings}
         onUpdateSettings={(newSettings) => setSettings((prev) => ({ ...prev, ...newSettings }))}
-        onResume={() => {
-          setIsPauseOpen(false);
-          resumeGame();
-        }}
-        onRestart={() => {
-          setIsPauseOpen(false);
-          resetGame();
-          startGame();
-        }}
+        onResume={closePause}
+        onRestart={restart}
+        onQuit={backToTitle}
       />
 
       <GameOverDialog
-        isOpen={gameState.status === 'ENDED'}
+        isOpen={gameState.status === 'ENDED' && !isLeaderboardOpen}
         runData={lastResult}
-        validationStatus={validationStatus}
-        ghostDeltaMeters={ghostDeltaMeters}
+        verify={verify}
         lang={lang}
-        onRestart={() => {
-          resetGame();
-          startGame();
-        }}
+        onRestart={restart}
+        onTitle={backToTitle}
         onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
       />
 
       <DailyGauntletCard
         isOpen={isDailyCardOpen}
         dailyConfig={dailyConfig}
+        lang={lang}
         onClose={() => setIsDailyCardOpen(false)}
         onDeployDaily={handleDeploySeed}
       />
@@ -449,21 +436,24 @@ export function App() {
       <LeaderboardModal
         isOpen={isLeaderboardOpen}
         currentSeed={gameState.seed}
+        lang={lang}
         onClose={() => setIsLeaderboardOpen(false)}
         onRaceGhost={handleRaceGhost}
       />
 
-      {/* ========================================================================= */}
-      {/* BOTTOM TELEMETRY FOOTER                                                   */}
-      {/* ========================================================================= */}
-      <footer className="w-full bg-[#000f21]/90 backdrop-blur-md py-3 border-t border-cyan-500/10">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row items-center justify-between gap-2 font-mono text-xs text-gray-400">
-          <div className="flex items-center gap-4">
-            <span>TERMINAL: KINETIC-ORBITAL-7</span>
-            <span className="text-cyan-400 font-semibold">SYS_ONLINE // LATENCY: NOMINAL</span>
-            <span className="text-fuchsia-400 font-semibold">SERVER-AUTHORITATIVE ANTI-CHEAT: ACTIVE</span>
-          </div>
-          <div>© 2026 KINETIC VELOCITY DECK. ENDLESS PERSPECTIVE RUNNER SUITE.</div>
+      <footer className="w-full py-3 border-t border-[#2f2d42]">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#aaa6b8]">
+          <span>{t('footer')}</span>
+          <button
+            disabled={inRun}
+            onClick={() => {
+              backToTitle();
+              setScreen('credits');
+            }}
+            className="underline underline-offset-2 hover:text-[#f2c230]"
+          >
+            {t('credits')}
+          </button>
         </div>
       </footer>
     </div>

@@ -3,224 +3,155 @@ import { RunResult } from '../../shared/sim/types';
 import { HAZARDS } from '../../shared/content/hazards';
 import { GO_BAG_ITEMS } from '../../shared/content/items';
 import { STARTING_HEARTS } from '../../shared/sim/constants';
-import { Lang, questionById } from '../../shared/content/questions';
-import { RotateCcw, CheckCircle2, AlertTriangle, Trophy, Sparkles, LifeBuoy, Copy, Check, BookOpen, HelpCircle } from 'lucide-react';
+import { questionById } from '../../shared/content/questions';
+import { Lang, UI, UiKey } from '../../shared/content/i18n';
+import { RotateCcw, CheckCircle2, AlertTriangle, Trophy, Copy, Check, BookOpen, Home, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-const LESSON_TEXT = {
-  gates: { en: 'Quiz gates correct', fil: 'Tamang sagot sa tanong' },
-  lessons: { en: 'Lessons from this run', fil: 'Mga aral mula sa takbong ito' },
-  answer: { en: 'Answer', fil: 'Sagot' },
-  source: { en: 'Source', fil: 'Pinagmulan' },
-};
+export type VerifyState = 'checking' | 'verified' | 'offline' | 'mismatch' | 'rejected' | 'practice';
 
 interface GameOverDialogProps {
   isOpen: boolean;
   runData: RunResult | null;
-  validationStatus: { verified: boolean; reason: string; rank?: number } | null;
-  ghostDeltaMeters: number;
+  verify: { state: VerifyState; reason?: string; rank?: number } | null;
   lang: Lang;
   onRestart: () => void;
+  onTitle: () => void;
   onOpenLeaderboard: () => void;
 }
 
-export const GameOverDialog: React.FC<GameOverDialogProps> = ({
-  isOpen,
-  runData,
-  validationStatus,
-  ghostDeltaMeters,
-  lang,
-  onRestart,
-  onOpenLeaderboard,
-}) => {
+/** Results: how the run went, the lessons from wrong answers, and whether the server agreed. */
+export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData, verify, lang, onRestart, onTitle, onOpenLeaderboard }) => {
   const [copied, setCopied] = useState(false);
+  const t = (key: UiKey) => UI[key][lang];
 
   // Celebrate reaching the evacuation center. Hooks run before any early return.
   React.useEffect(() => {
     if (isOpen && runData?.finished) {
-      confetti({
-        particleCount: 60,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#4cd7f6', '#fbabff', '#f7be1d'],
-      });
+      confetti({ particleCount: 70, spread: 75, origin: { y: 0.6 }, colors: ['#f2c230', '#d6402b', '#2b5fb8', '#3d8b4f', '#f1ebdd'] });
     }
   }, [isOpen, runData]);
 
   if (!isOpen || !runData) return null;
-  const rescuedBy = runData.rescuedBy ? HAZARDS[runData.rescuedBy].name.en : null;
+  const rescuedBy = runData.rescuedBy ? HAZARDS[runData.rescuedBy].name[lang] : null;
 
-  // Generate spoiler-free scorecard summary
-  const generateScorecard = () => {
-    return `Takbo! Bagyo Run · seed ${runData.seed}
-${runData.finished ? 'Reached the evacuation center' : `Rescued at ${runData.distance.toLocaleString()} m`}
-Score: ${runData.score.toLocaleString()}
-Hearts left: ${runData.heartsLeft}/${STARTING_HEARTS}
-Go-Bag: ${runData.goBagCount}/${GO_BAG_ITEMS.length}
-Quiz gates: ${runData.gatesCorrect}/${runData.gatesTotal}
-Supplies: ${runData.supplies} · Near misses: ${runData.nearMisses}
-Time: ${(runData.ticks / 60).toFixed(1)} s`;
-  };
+  const scorecard = () =>
+    [
+      `Takbo! Bagyo Run · seed ${runData.seed}`,
+      runData.finished ? t('madeItSub') : `${t('rescued')} ${runData.distance.toLocaleString('en-US')} m`,
+      `${t('score')}: ${runData.score.toLocaleString('en-US')}`,
+      `${t('heartsLeft')}: ${runData.heartsLeft}/${STARTING_HEARTS}`,
+      `${t('goBagPacked')}: ${runData.goBagCount}/${GO_BAG_ITEMS.length}`,
+      `${t('quizCorrect')}: ${runData.gatesCorrect}/${runData.gatesTotal}`,
+    ].join('\n');
 
-  const handleCopyScorecard = () => {
-    navigator.clipboard.writeText(generateScorecard());
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(scorecard()).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
 
+  const rows: [UiKey, string][] = [
+    ['distance', `${(runData.distance / 1000).toFixed(2)} km`],
+    ['heartsLeft', `${runData.heartsLeft} / ${STARTING_HEARTS}`],
+    ['goBagPacked', `${runData.goBagCount} / ${GO_BAG_ITEMS.length}`],
+    ['quizCorrect', `${runData.gatesCorrect} / ${runData.gatesTotal}`],
+    ['supplies', String(runData.supplies)],
+    ['nearMisses', String(runData.nearMisses)],
+    ['time', `${(runData.ticks / 60).toFixed(1)} s`],
+  ];
+
+  const verifyText: Record<VerifyState, string> = {
+    checking: t('verifying'),
+    verified: t('verified'),
+    offline: t('offlineNotSubmitted'),
+    mismatch: t('replayMismatch'),
+    rejected: `${t('notVerified')}${verify?.reason ? `: ${verify.reason}` : ''}`,
+    practice: t('practiceNotSubmitted'),
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto glass-panel-glow rounded-3xl p-6 md:p-8 flex flex-col gap-6 text-white border border-cyan-500/30">
-        {/* Header */}
-        <div className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-            {runData.finished ? <Trophy className="w-8 h-8 text-amber-300" /> : <LifeBuoy className="w-8 h-8 text-red-400" />}
-          </div>
-          <span className="font-mono text-xs uppercase tracking-widest text-red-400 font-bold mb-1">
-            {runData.finished ? 'Ligtas ka na!' : 'Na-rescue ka!'}
-          </span>
-          <h2 className="font-headline text-2xl md:text-3xl font-extrabold tracking-tight">
-            {runData.finished ? 'You made it to the evacuation center' : 'Rescuers carried you the rest of the way'}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/70 animate-in fade-in duration-200">
+      <div role="dialog" aria-modal="true" aria-labelledby="results-title" className="sheet w-full max-w-xl max-h-[94vh] overflow-y-auto px-5 md:px-7 pb-6 flex flex-col gap-5 font-body">
+        <div>
+          <span className="font-display text-xs tracking-wider text-[#f2c230]">{runData.finished ? t('madeItSub') : rescuedBy ? `${t('lastHit')}: ${rescuedBy}` : ''}</span>
+          <h2 id="results-title" className="takbo-logo font-display text-4xl md:text-5xl leading-none mt-1">
+            {runData.finished ? t('madeIt') : t('rescued')}
           </h2>
-          <p className="font-mono text-xs text-gray-400 mt-1">
-            {rescuedBy ? (<>Last hit: <span className="text-amber-400 font-bold">{rescuedBy}</span></>) : (<>Hearts left: <span className="text-amber-400 font-bold">{runData.heartsLeft}/{STARTING_HEARTS}</span> · Go-Bag: <span className="text-amber-400 font-bold">{runData.goBagCount}/{GO_BAG_ITEMS.length}</span></>)}
-          </p>
+          {!runData.finished && <p className="text-sm text-[#f1ebdd]/85 mt-2">{t('rescuedSub')}</p>}
         </div>
 
-        {/* Primary Stats Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Distance */}
-          <div className="p-4 rounded-2xl bg-surface-container-high/80 border border-white/5 flex flex-col items-center justify-center">
-            <span className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">
-              DISTANCE
-            </span>
-            <span className="font-mono text-3xl font-extrabold text-neon-cyan mt-1">
-              {runData.distance.toLocaleString()}
-              <span className="text-xs text-cyan-400/80 ml-1">M</span>
-            </span>
-          </div>
-
-          {/* Score */}
-          <div className="p-4 rounded-2xl bg-surface-container-high/80 border border-white/5 flex flex-col items-center justify-center">
-            <span className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">
-              TOTAL SCORE
-            </span>
-            <span className="font-mono text-3xl font-extrabold text-neon-amber mt-1">
-              {runData.score.toLocaleString()}
-            </span>
-          </div>
-
-          {/* Near-Misses */}
-          <div className="p-3 rounded-2xl bg-surface-container-high/60 border border-white/5 flex items-center justify-between px-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-fuchsia-400" />
-              <span className="font-mono text-xs text-gray-300">Near misses</span>
-            </div>
-            <span className="font-mono text-sm font-bold text-fuchsia-300">
-              {runData.nearMisses}x
-            </span>
-          </div>
-
-          {/* Coins / Orbs */}
-          <div className="p-3 rounded-2xl bg-surface-container-high/60 border border-white/5 flex items-center justify-between px-4">
-            <div className="flex items-center gap-2">
-              <span className="text-amber-400 text-sm">⚡</span>
-              <span className="font-mono text-xs text-gray-300">Supplies</span>
-            </div>
-            <span className="font-mono text-sm font-bold text-amber-300">
-              {runData.supplies}
-            </span>
+        <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-start">
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+            {rows.map(([k, v]) => (
+              <React.Fragment key={k}>
+                <dt className="text-[#aaa6b8]">{t(k)}</dt>
+                <dd className="font-display text-right">{v}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+          <div className="rounded-lg bg-black/30 px-5 py-3 text-center">
+            <span className="font-display text-xs text-[#f2c230]">{t('score')}</span>
+            <p className="font-display text-3xl md:text-4xl">{runData.score.toLocaleString('en-US')}</p>
+            {verify?.rank !== undefined && verify.state === 'verified' && (
+              <p className="text-xs text-[#aaa6b8] mt-1">
+                {t('rank')} #{verify.rank}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Quiz gates and lessons */}
-        <div className="p-4 rounded-2xl bg-surface-container-high/60 border border-white/5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-emerald-400" />
-              <span className="font-mono text-xs text-gray-300">{LESSON_TEXT.gates[lang]}</span>
-            </div>
-            <span className="font-mono text-sm font-bold text-emerald-300">
-              {runData.gatesCorrect}/{runData.gatesTotal}
-            </span>
-          </div>
-          {runData.wrongQuestionIds.length > 0 && (
-            <div className="flex flex-col gap-2.5">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5" /> {LESSON_TEXT.lessons[lang]}
-              </span>
-              {runData.wrongQuestionIds.map((id) => {
-                const q = questionById(id);
-                return (
-                  <div key={id} className="rounded-xl bg-black/30 border border-white/5 p-3 text-left">
-                    <p className="text-sm font-semibold text-white">{q.prompt[lang]}</p>
-                    <p className="text-sm text-emerald-300 mt-1">
-                      {LESSON_TEXT.answer[lang]}: {q.choices[q.answer][lang]}
-                    </p>
-                    <p className="text-xs text-gray-300 mt-1 leading-relaxed">{q.lesson[lang]}</p>
-                    <p className="font-mono text-[10px] text-gray-500 mt-1.5">
-                      {LESSON_TEXT.source[lang]}: {q.source.org === 'Law' ? q.source.ref : `${q.source.org}, ${q.source.ref}`}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Ghost Delta Split comparison */}
-        <div className="p-3 rounded-xl bg-surface-container-low/90 border border-white/10 flex items-center justify-between font-mono text-xs">
-          <span className="text-gray-400">GHOST RUNNER COMPARISON:</span>
-          <span
-            className={`font-bold flex items-center gap-1 ${
-              ghostDeltaMeters >= 0 ? 'text-emerald-400' : 'text-amber-400'
-            }`}
-          >
-            {ghostDeltaMeters >= 0 ? `+${ghostDeltaMeters}m LEAD AHEAD` : `${ghostDeltaMeters}m BEHIND GHOST`}
-          </span>
-        </div>
-
-        {/* Anti-Cheat Authoritative Verification Badge */}
-        <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center gap-3">
-          {validationStatus?.verified ? (
-            <CheckCircle2 className="w-5 h-5 text-cyan-400 flex-shrink-0" />
+        <section className="flex flex-col gap-2.5">
+          <h3 className="font-display text-sm text-[#f2c230] flex items-center gap-2">
+            <BookOpen className="w-4 h-4" /> {t('lessons')}
+          </h3>
+          {runData.wrongQuestionIds.length === 0 ? (
+            <p className="text-sm">{t('allCorrect')}</p>
           ) : (
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            runData.wrongQuestionIds.map((id) => {
+              const q = questionById(id);
+              return (
+                <div key={id} className="rounded-lg bg-black/30 border-l-4 border-[#f2c230] p-3">
+                  <p className="text-sm font-semibold">{q.prompt[lang]}</p>
+                  <p className="text-sm text-[#9fe0a8] mt-1">
+                    {t('answer')}: {q.choices[q.answer][lang]}
+                  </p>
+                  <p className="text-xs text-[#f1ebdd]/85 mt-1 leading-relaxed">{q.lesson[lang]}</p>
+                  <p className="font-mono text-[10px] text-[#aaa6b8] mt-1.5">
+                    {t('source')}: {q.source.org === 'Law' ? q.source.ref : `${q.source.org}, ${q.source.ref}`}
+                  </p>
+                </div>
+              );
+            })
           )}
-          <div className="flex flex-col">
-            <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-              {validationStatus?.verified ? 'SERVER ANTI-CHEAT VERIFIED' : 'TELEMETRY VALIDATING'}
-            </span>
-            <span className="font-mono text-[11px] text-gray-300">
-              {validationStatus?.reason || 'Replaying flight path against deterministic seed...'}
-            </span>
-          </div>
-        </div>
+        </section>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col gap-2.5">
-          <div className="flex gap-2.5">
-            <button
-              onClick={onRestart}
-              className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-headline text-sm font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-[0_0_25px_rgba(6,182,212,0.4)]"
-            >
-              <RotateCcw className="w-4 h-4" /> RE-DEPLOY SPRINT
-            </button>
-            <button
-              onClick={handleCopyScorecard}
-              className="px-4 py-3.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 font-mono text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors border border-cyan-500/20"
-              title="Copy shareable scorecard"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'COPIED!' : 'SHARE'}
-            </button>
+        {verify && (
+          <div className="flex items-center gap-2 text-xs text-[#f1ebdd]/85">
+            {verify.state === 'checking' ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#f2c230]" />
+            ) : verify.state === 'verified' ? (
+              <CheckCircle2 className="w-4 h-4 text-[#6cc070]" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-[#f0862a]" />
+            )}
+            <span>{verifyText[verify.state]}</span>
           </div>
+        )}
 
-          <button
-            onClick={onOpenLeaderboard}
-            className="w-full py-2.5 rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high text-gray-300 hover:text-white font-mono text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors border border-white/5"
-          >
-            <Trophy className="w-4 h-4 text-amber-400" /> View Global Leaderboard & Ghost Archive
+        <div className="flex flex-wrap gap-2">
+          <button onClick={onRestart} className="btn-jeep flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2" autoFocus>
+            <RotateCcw className="w-4 h-4" /> {t('runAgain')}
+          </button>
+          <button onClick={handleCopy} className="btn-plain px-4 py-3 text-xs flex items-center gap-2">
+            {copied ? <Check className="w-4 h-4 text-[#6cc070]" /> : <Copy className="w-4 h-4" />}
+            {copied ? t('copied') : t('share')}
+          </button>
+          <button onClick={onOpenLeaderboard} className="btn-plain px-4 py-3 text-xs flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-[#f2c230]" /> {t('leaderboard')}
+          </button>
+          <button onClick={onTitle} className="btn-plain px-4 py-3 text-xs flex items-center gap-2">
+            <Home className="w-4 h-4" /> {t('quitToTitle')}
           </button>
         </div>
       </div>

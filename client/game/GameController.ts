@@ -11,16 +11,21 @@ import {
   TelemetryPoint,
 } from '../../shared/sim/types';
 import { GameSimulation, TICK_MS } from '../../shared/sim/simulation';
-import { FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants';
-import { SIGNALS } from '../../shared/content/signals';
+import { BAYANIHAN_MIN_GAUGE, FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants';
+import { SIGNALS, signalAt } from '../../shared/content/signals';
 import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
+import { HAZARDS, HazardId } from '../../shared/content/hazards';
+import type { UiKey } from '../../shared/content/i18n';
 import { GATES_PER_AREA } from '../../shared/sim/quiz';
 import { Renderer } from '../render/Renderer';
-import { soundEngine } from '../engine/audio';
+import { audio } from '../audio/AudioEngine';
 
 const HUD_SYNC_SEC = 0.065; // ~15 Hz
 const TELEMETRY_HEARTBEAT_MS = 100;
-const TOP_SPEED = SIGNALS[SIGNALS.length - 1].speed;
+/** One footstep per half stride of the kid's run cycle (see the renderer's run phase). */
+const STEP_M = Math.PI / 0.75;
+export const PRACTICE_SEED = 'PRACTICE';
+const DEFAULT_SEED = 'SEED-DAILY-GAUNTLET';
 
 /** The last gate answer, shown briefly after the player crosses a gate. */
 export interface GateFeedback {
@@ -36,6 +41,10 @@ export interface HudSnapshot {
   state: HudState;
   ghostDeltaMeters: number;
   gateFeedback: GateFeedback | null;
+  /** Practice runs are coached and never submitted. */
+  practice: boolean;
+  /** Practice-run tip for what is coming up next. */
+  coach: UiKey | null;
 }
 
 const GATE_FEEDBACK_MS = 2600;
@@ -71,6 +80,8 @@ export class GameController {
   private hudTimer = 0;
   private gateFeedback: GateFeedback | null = null;
   private gateFeedbackUntilMs = 0;
+  private practice = false;
+  private lastStep = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -94,15 +105,18 @@ export class GameController {
   public dispose() {
     if (this.animFrameId !== null) cancelAnimationFrame(this.animFrameId);
     this.animFrameId = null;
-    soundEngine.stopEngineHum();
   }
 
   public loadGhostTelemetry(telemetry: TelemetryPoint[]) {
     this.ghostTelemetry = telemetry;
   }
 
-  public reset(seed = this.sim.seed) {
-    this.sim = new GameSimulation(seed);
+  /** Back to the start line. Practice runs always use the practice seed. */
+  public reset(seed = this.sim.seed, practice = false) {
+    this.practice = practice;
+    this.lastStep = 0;
+    this.sim = new GameSimulation(practice ? PRACTICE_SEED : seed === PRACTICE_SEED ? DEFAULT_SEED : seed);
+    audio.setMusicLevel('menu');
     this.inputLog = [];
     this.telemetry = [];
     this.ghostZ = 0;
@@ -113,20 +127,29 @@ export class GameController {
   }
 
   public startRun() {
-    if (this.status === 'ENDED') this.reset();
+    if (this.status === 'ENDED') this.reset(this.sim.seed, this.practice);
+    audio.unlock();
+    const signal = signalAt(this.sim.playerZ);
+    audio.setWeather(signal.rain, signal.wind, signal.level);
+    audio.setMusicLevel('run');
     this.setStatus('RUNNING');
-    soundEngine.startEngineHum();
+  }
+
+  /** A coached run on the fixed practice seed. */
+  public startPractice() {
+    this.reset(PRACTICE_SEED, true);
+    this.startRun();
   }
 
   public pause() {
     if (this.status !== 'RUNNING') return;
-    soundEngine.stopEngineHum();
+    audio.setMusicLevel('menu');
     this.setStatus('PAUSED');
   }
 
   public resume() {
     if (this.status !== 'PAUSED') return;
-    soundEngine.startEngineHum();
+    audio.setMusicLevel('run');
     this.setStatus('RUNNING');
   }
 
@@ -151,7 +174,7 @@ export class GameController {
       this.accumulator += frameDeltaSec;
       while (this.accumulator >= FIXED_TIMESTEP_SEC && this.status === 'RUNNING') {
         this.handleEvents(this.sim.step());
-        soundEngine.updateEnginePitch(this.sim.effectiveSpeed / TOP_SPEED);
+        this.footsteps();
         this.updateGhost();
         this.accumulator -= FIXED_TIMESTEP_SEC;
       }
@@ -187,24 +210,24 @@ export class GameController {
     for (const event of events) {
       switch (event.type) {
         case 'LANE_CHANGED':
-          soundEngine.playLaneShift();
+          audio.laneShift();
           this.recordAction('lane_shift');
           break;
         case 'JUMP_REQUESTED':
-          soundEngine.playJump();
+          audio.jump();
           this.recordAction('jump');
           break;
         case 'SLIDE_STARTED':
-          soundEngine.playSlide();
+          audio.slide();
           this.recordAction('slide');
           break;
         case 'BAYANIHAN_STARTED':
-          soundEngine.playOverdrive();
+          audio.bayanihan();
           this.renderer.triggerScreenShake(0.8);
           this.recordAction('bayanihan');
           break;
         case 'NEAR_MISS': {
-          soundEngine.playNearMiss();
+          audio.nearMiss();
           const p = this.playerScreenPos();
           this.renderer.addNearMissSparks(p.x, p.y, 24);
           this.renderer.triggerScreenShake(0.3);
@@ -212,30 +235,42 @@ export class GameController {
         }
         case 'ITEM_COLLECTED':
           if (event.itemId === 'supply' || event.goBag) {
-            soundEngine.playCoin();
+            if (event.goBag) audio.goBagItem();
+            else audio.supply();
             const p = this.playerScreenPos();
             this.renderer.addCoinBurst(p.x, p.y);
           } else {
-            soundEngine.playNearMiss();
+            audio.powerUp();
           }
           break;
         case 'GO_BAG_COMPLETE':
-        case 'SIGNAL_UP':
-          soundEngine.playOverdrive();
+          audio.goBagComplete();
           break;
+        case 'SIGNAL_UP': {
+          const signal = SIGNALS[event.level - 1];
+          audio.siren(event.level);
+          audio.setWeather(signal.rain, signal.wind, signal.level);
+          this.emitHud();
+          break;
+        }
         case 'SHIELD_ABSORBED':
-          soundEngine.playImpact();
+          audio.shieldAbsorbed();
           this.renderer.triggerScreenShake(0.6);
           break;
         case 'HAZARD_HIT':
-          soundEngine.playImpact();
+          audio.hit();
           this.renderer.triggerScreenShake(1.0);
           this.emitHud();
           break;
         case 'FINISHED':
         case 'RESCUED':
-          soundEngine.stopEngineHum();
-          if (event.type === 'RESCUED') this.renderer.triggerScreenShake(1.5);
+          if (event.type === 'RESCUED') {
+            audio.rescued();
+            this.renderer.triggerScreenShake(1.5);
+          } else {
+            audio.finish();
+          }
+          audio.setMusicLevel('menu');
           this.setStatus('ENDED');
           this.callbacks.onGameOver(this.sim.result(), this.submission());
           break;
@@ -243,7 +278,7 @@ export class GameController {
           this.emitHud();
           break;
         case 'GATE_SHOWN':
-          soundEngine.playLaneShift();
+          audio.gateShown();
           this.emitHud();
           break;
         case 'GATE_ANSWERED': {
@@ -251,17 +286,55 @@ export class GameController {
           this.gateFeedback = feedback;
           this.gateFeedbackUntilMs = this.sim.elapsedMs + GATE_FEEDBACK_MS;
           if (event.correct) {
-            soundEngine.playOverdrive();
+            audio.gateCorrect();
             const p = this.playerScreenPos();
             this.renderer.addCoinBurst(p.x, p.y);
           } else {
-            soundEngine.playImpact();
+            audio.gateWrong();
           }
           this.emitHud();
           break;
         }
       }
     }
+  }
+
+  private footsteps() {
+    const step = Math.floor(this.sim.playerZ / STEP_M);
+    if (step === this.lastStep) return;
+    this.lastStep = step;
+    if (this.sim.player.isGrounded && !this.sim.player.isSliding) audio.footstep(this.sim.areaId === 'estero');
+  }
+
+  /** Practice-run tip: the hazard in your lane first, then pickups and Bayanihan. */
+  private coach(): UiKey | null {
+    const sim = this.sim;
+    if (!this.practice || this.status !== 'RUNNING') return null;
+    if (sim.elapsedMs < 4000) return 'coachLanes';
+    if (sim.gateShown) return 'coachGate';
+    let nearest: { dz: number; hazard: HazardId } | null = null;
+    let goBagAhead = false;
+    let supplyAhead = false;
+    for (const chunk of sim.chunks) {
+      for (const o of chunk.obstacles) {
+        const dz = o.zPos - sim.playerZ;
+        if (dz > 0 && dz < 32 && o.lane === sim.player.lane && (!nearest || dz < nearest.dz)) nearest = { dz, hazard: o.hazardId };
+      }
+      for (const c of chunk.collectibles) {
+        const dz = c.zPos - sim.playerZ;
+        if (c.collected || dz <= 0 || dz > 40) continue;
+        if (c.type === 'gobag') goBagAhead = true;
+        if (c.type === 'supply' && dz < 25) supplyAhead = true;
+      }
+    }
+    if (nearest) {
+      const avoid = HAZARDS[nearest.hazard].avoid;
+      return avoid === 'jump' ? 'coachJump' : avoid === 'slide' ? 'coachSlide' : 'coachDodge';
+    }
+    if (goBagAhead) return 'coachGoBag';
+    if (sim.bayanihanGauge >= BAYANIHAN_MIN_GAUGE && !sim.isBayanihanActive) return 'coachBayanihan';
+    if (supplyAhead && sim.supplies < 5) return 'coachSupply';
+    return null;
   }
 
   /** The next gate while it is within drawing range, with the answer lane once it is crossed. */
@@ -324,6 +397,8 @@ export class GameController {
     this.callbacks.onHud({
       ghostDeltaMeters: this.ghostTelemetry ? Math.floor(distance - this.ghostZ) : 0,
       gateFeedback: this.gateFeedback,
+      practice: this.practice,
+      coach: this.coach(),
       state: {
         status: this.status,
         seed: sim.seed,
@@ -358,6 +433,8 @@ export class GameController {
 export const INITIAL_HUD = (seed: string): HudSnapshot => ({
   ghostDeltaMeters: 0,
   gateFeedback: null,
+  practice: false,
+  coach: null,
   state: {
     status: 'IDLE',
     seed,

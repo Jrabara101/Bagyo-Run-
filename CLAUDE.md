@@ -70,7 +70,15 @@ npm run build      # production build
   perspective, `art/` per subject) replaces `client/engine/canvasRenderer.ts`. Four areas painted per
   4 m road band, sky/ground blended near area edges, rain/wind/lightning from `Signal.rain/wind`,
   one drawing per hazard id, Go-Bag item icons, bamboo quiz gate, finish at the school, kid in a
-  yellow raincoat. Title screen shows the TAKBO! lockup over a dusk barangay. HUD panels themselves
-  are still the old neon style (Phase 5).
-- Next: Phase 5 — audio, full i18n, screens and HUD restyle.
+  yellow raincoat. Title screen shows the TAKBO! lockup over a dusk barangay.
+- Phase 5 (audio + UI) — done 2026-10-18. `client/audio/AudioEngine.ts` (Web Audio only):
+  kulintang-style loop whose tempo follows the signal, rain/wind bed, siren on SIGNAL_UP, effects
+  per event, footsteps/splashes. All UI text in `shared/content/i18n.ts` (`UI`), with a test that
+  every string has both languages. Screens: Title menu, How to Play (hazard/item thumbnails drawn
+  by the game's art functions), Practice run (seed `PRACTICE`, coach tips, never submitted),
+  Credits (`shared/content/credits.ts`: put the developer name there), Settings/Pause, Results.
+  HUD and all dialogs restyled (`.hp`, `.sheet`, `.btn-jeep` in `client/index.css`). Settings,
+  language and mute persist in localStorage.
+- Next: Phase 6 — server schema, daily seed titles, remove fake runs. Server verify `reason`
+  strings are still English only.
 - The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

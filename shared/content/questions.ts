@@ -1,7 +1,8 @@
 import type { AreaId } from './areas';
 
-export type Bilingual = { en: string; fil: string };
-export type Lang = keyof Bilingual;
+import type { Bilingual, Lang } from './i18n';
+
+export type { Bilingual, Lang };
 
 export type SourceOrg = 'PAGASA' | 'NDRRMC' | 'OCD' | 'DOH' | 'DepEd' | 'DSWD' | 'DENR-MGB' | 'DA' | 'NEA' | 'BFP' | 'Law';
 

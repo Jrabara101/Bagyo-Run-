@@ -25,15 +25,15 @@ export const QuizGateBanner: React.FC<QuizGateBannerProps> = ({ gate, feedback, 
   if (gate) {
     const q = questionById(gate.questionId);
     return (
-      <div className="absolute left-1/2 -translate-x-1/2 top-28 md:top-32 w-[min(92%,760px)] pointer-events-none z-20" role="status" aria-live="polite">
+      <div className="absolute left-1/2 -translate-x-1/2 top-24 md:top-28 w-[min(92%,760px)] pointer-events-none z-20" role="status" aria-live="polite">
         <div className="rounded-2xl bg-[#fff4d6] text-[#1b2a4a] border-4 border-[#b3261e] shadow-[0_6px_0_#1b2a4a] px-4 py-3">
-          <div className="flex items-center justify-between font-mono text-[11px] font-black uppercase tracking-wider text-[#b3261e]">
+          <div className="flex items-center justify-between font-display text-[11px] tracking-wider text-[#b3261e]">
             <span>
               {TEXT.gate[lang]} {gate.index + 1}/{gatesTotal}
             </span>
             <span>{gate.metersLeft} m</span>
           </div>
-          <p className="font-headline text-base md:text-xl font-extrabold leading-snug mt-1">{q.prompt[lang]}</p>
+          <p className="font-body text-base md:text-xl font-extrabold leading-snug mt-1">{q.prompt[lang]}</p>
           <div className="grid grid-cols-3 gap-2 mt-2.5">
             {gate.laneChoices.map((choice, lane) => (
               <div
@@ -42,7 +42,7 @@ export const QuizGateBanner: React.FC<QuizGateBannerProps> = ({ gate, feedback, 
                   gate.lane === lane ? 'bg-[#f7be1d] border-[#1b2a4a]' : 'bg-white/70 border-[#1b2a4a]/30'
                 }`}
               >
-                <span className="font-mono font-black text-lg leading-none">{LETTERS[lane]}</span>
+                <span className="font-display text-lg leading-none">{LETTERS[lane]}</span>
                 <span className="text-xs md:text-sm font-semibold leading-tight">{q.choices[choice][lang]}</span>
               </div>
             ))}
@@ -57,13 +57,13 @@ export const QuizGateBanner: React.FC<QuizGateBannerProps> = ({ gate, feedback, 
     const q = questionById(feedback.questionId);
     const answer = q.choices[q.answer][lang];
     return (
-      <div className="absolute left-1/2 -translate-x-1/2 top-28 md:top-32 pointer-events-none z-20" role="status" aria-live="polite">
+      <div className="absolute left-1/2 -translate-x-1/2 top-24 md:top-28 pointer-events-none z-20" role="status" aria-live="polite">
         <div
           className={`rounded-2xl px-5 py-2.5 border-4 shadow-[0_6px_0_#1b2a4a] text-center ${
             feedback.correct ? 'bg-emerald-300 border-emerald-700 text-emerald-950' : 'bg-[#fff4d6] border-[#b3261e] text-[#1b2a4a]'
           }`}
         >
-          <p className="font-headline text-xl md:text-2xl font-black">
+          <p className="font-display text-xl md:text-2xl">
             {feedback.correct ? `${TEXT.correct[lang]} +${feedback.points.toLocaleString()}` : TEXT.wrong[lang]}
           </p>
           {!feedback.correct && (

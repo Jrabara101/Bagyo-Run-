@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameSettings, RunResult, RunSubmissionPayload, TelemetryPoint } from '../../shared/sim/types';
-import { soundEngine } from '../engine/audio';
+import { audio } from '../audio/AudioEngine';
 import { GameController, HudSnapshot, INITIAL_HUD } from './GameController';
 
 /** Thin React bridge over GameController: owns its lifetime and mirrors a throttled HUD snapshot. */
@@ -39,11 +39,12 @@ export function useGame(
   }, [settings.screenShake, settings.cameraTilt]);
 
   useEffect(() => {
-    soundEngine.setVolumes(settings.masterVolume, settings.sfxVolume);
-  }, [settings.masterVolume, settings.sfxVolume]);
+    audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
+  }, [settings.masterVolume, settings.sfxVolume, settings.musicVolume]);
 
   const resetGame = useCallback((seed?: string) => controllerRef.current?.reset(seed || undefined), []);
   const startGame = useCallback(() => controllerRef.current?.startRun(), []);
+  const startPractice = useCallback(() => controllerRef.current?.startPractice(), []);
   const pauseGame = useCallback(() => controllerRef.current?.pause(), []);
   const resumeGame = useCallback(() => controllerRef.current?.resume(), []);
   const handleShiftLane = useCallback(
@@ -62,7 +63,10 @@ export function useGame(
     gameState: hud.state,
     ghostDeltaMeters: hud.ghostDeltaMeters,
     gateFeedback: hud.gateFeedback,
+    practice: hud.practice,
+    coach: hud.coach,
     startGame,
+    startPractice,
     pauseGame,
     resumeGame,
     resetGame,

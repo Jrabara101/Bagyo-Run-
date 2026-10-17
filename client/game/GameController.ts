@@ -1,6 +1,5 @@
 import {
   Action,
-  AreaId,
   GameSettings,
   HudState,
   InputEvent,
@@ -16,20 +15,12 @@ import { FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants'
 import { SIGNALS } from '../../shared/content/signals';
 import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
 import { GATES_PER_AREA } from '../../shared/sim/quiz';
-import { CanvasRenderer, RenderBiome } from '../engine/canvasRenderer';
+import { Renderer } from '../render/Renderer';
 import { soundEngine } from '../engine/audio';
 
 const HUD_SYNC_SEC = 0.065; // ~15 Hz
 const TELEMETRY_HEARTBEAT_MS = 100;
 const TOP_SPEED = SIGNALS[SIGNALS.length - 1].speed;
-
-// Placeholder palettes until the Phase 4 art replaces the renderer
-const AREA_PALETTE: Record<AreaId, RenderBiome> = {
-  barangay: 'neon_city',
-  estero: 'sky_bridge',
-  palayan: 'magma_vault',
-  evac: 'neon_city',
-};
 
 /** The last gate answer, shown briefly after the player crosses a gate. */
 export interface GateFeedback {
@@ -73,7 +64,7 @@ export class GameController {
   private ghostZ = 0;
   private ghostLane: LaneIndex = 1;
 
-  private readonly renderer: CanvasRenderer;
+  private readonly renderer: Renderer;
   private animFrameId: number | null = null;
   private lastTime = 0;
   private accumulator = 0;
@@ -86,7 +77,7 @@ export class GameController {
     seed: string,
     private readonly callbacks: ControllerCallbacks
   ) {
-    this.renderer = new CanvasRenderer(canvas);
+    this.renderer = new Renderer(canvas);
     this.sim = new GameSimulation(seed);
   }
 
@@ -177,16 +168,16 @@ export class GameController {
     const sim = this.sim;
     this.renderer.render(
       frameDeltaSec,
-      sim.player,
-      sim.playerZ,
-      sim.chunks,
-      this.renderGate(),
-      AREA_PALETTE[sim.areaId],
-      sim.isBayanihanActive,
-      this.ghostTelemetry ? this.ghostZ : null,
-      this.ghostTelemetry ? this.ghostLane : null,
-      this.settings.screenShake,
-      this.settings.cameraTilt
+      {
+        player: sim.player,
+        playerZ: sim.playerZ,
+        chunks: sim.chunks,
+        gate: this.renderGate(),
+        bayanihan: sim.isBayanihanActive,
+        ghost: this.ghostTelemetry ? { z: this.ghostZ, lane: this.ghostLane } : null,
+        title: this.status === 'IDLE',
+      },
+      this.settings
     );
 
     this.animFrameId = requestAnimationFrame(this.frame);
@@ -291,8 +282,7 @@ export class GameController {
   }
 
   private playerScreenPos() {
-    const player = this.sim.player;
-    return this.renderer.project(player.currentX, player.yPos, 2.8);
+    return this.renderer.playerScreenPos(this.sim.player);
   }
 
   private recordAction(action: TelemetryPoint['action']) {

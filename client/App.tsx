@@ -38,6 +38,17 @@ const DEFAULT_SETTINGS: GameSettings = {
   keyOverdrive: ' ',
 };
 
+const TITLE_TEXT = {
+  kicker: { en: 'A typhoon-preparedness runner', fil: 'Takbuhan ng paghahanda sa bagyo' },
+  intro: {
+    en: 'Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. At each quiz gate, run into the lane with the right answer. You have 3 hearts.',
+    fil: 'Tumakbo mula sa bahay papunta sa evacuation center habang lumalakas ang bagyo mula Signal No. 1 hanggang 5. Tumalon, dumausdos at lumipat ng lane para iwasan ang panganib, mangolekta ng suplay, at kumpletuhin ang 8 gamit sa Go-Bag. Sa bawat quiz gate, tumakbo sa lane ng tamang sagot. May 3 puso ka.',
+  },
+  play: { en: 'Takbo! · SPACE', fil: 'Takbo! · SPACE' },
+  keyboard: { en: 'KEYBOARD: WASD / ARROWS', fil: 'KEYBOARD: WASD / ARROW KEYS' },
+  mobile: { en: 'MOBILE: SWIPE & TAP', fil: 'MOBILE: I-SWIPE AT I-TAP' },
+};
+
 export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -243,11 +254,11 @@ export function App() {
             </div>
             <div className="flex flex-col">
               <span className="font-headline text-base md:text-lg font-black tracking-wider uppercase text-white flex items-center gap-2">
-                NEON CHASM <span className="text-cyan-400 font-mono text-xs">// VELOCITY DECK</span>
+                <span className="font-display font-normal text-[#f2c230]">TAKBO!</span> <span className="text-gray-300 font-mono text-xs">BAGYO RUN</span>
               </span>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-gray-400 uppercase tracking-widest">
-                  AVIONICS CORE
+                  SEED
                 </span>
                 <span className="font-mono text-[10px] text-cyan-400 font-bold tracking-wider">
                   {gameState.seed}
@@ -359,35 +370,35 @@ export function App() {
 
           {/* Instant Sprint Onboarding Splash Screen (When IDLE) */}
           {gameState.status === 'IDLE' && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-md">
-              <div className="flex flex-col items-center max-w-lg text-center animate-in zoom-in-95 duration-300">
-                <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold mb-2 flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-fuchsia-400" /> ZERO-FRICTION INSTANT SPRINT
+            <div className="absolute inset-0 z-30 flex flex-col justify-center p-6 md:p-12 bg-gradient-to-r from-[#15141f]/85 via-[#15141f]/40 to-transparent">
+              <div className="flex flex-col items-start max-w-xl text-left animate-in fade-in duration-500">
+                <span className="font-body text-xs md:text-sm font-bold uppercase tracking-widest text-[#ffe2b0]">
+                  {TITLE_TEXT.kicker[lang]}
                 </span>
-                <h1 className="font-headline text-4xl md:text-6xl font-black text-white tracking-tight uppercase">
-                  NEON CHASM
-                </h1>
-                <p className="font-mono text-xs md:text-sm text-gray-300 mt-2 max-w-md">
-                  Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. At each quiz gate, run into the lane with the right answer. You have 3 hearts.
-                </p>
+                <h1 className="takbo-logo font-display text-7xl md:text-8xl leading-none mt-1">TAKBO!</h1>
+                <span className="relative inline-block mt-3 px-3 pt-1.5 pb-2.5 bg-[#15141f] rounded font-display text-xl md:text-2xl text-white overflow-hidden">
+                  BAGYO RUN
+                  <span className="banig-trim absolute inset-x-0 bottom-0 h-1.5" aria-hidden="true" />
+                </span>
+                <p className="font-body text-sm md:text-base text-gray-100 mt-5 max-w-md drop-shadow">{TITLE_TEXT.intro[lang]}</p>
 
                 {/* Primary Launch Action */}
                 <button
                   onClick={startGame}
-                  className="mt-8 px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-pink-500 to-fuchsia-600 text-white font-headline text-base md:text-lg font-black uppercase tracking-widest flex items-center gap-3 shadow-[0_0_35px_rgba(76,215,246,0.6)] hover:brightness-110 active:scale-95 transition-all"
+                  className="mt-7 px-7 py-3.5 rounded-lg bg-[#d6402b] border-2 border-[#f2c230] shadow-[5px_5px_0_#2b5fb8] text-white font-display text-lg md:text-xl flex items-center gap-3 hover:brightness-110 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[3px_3px_0_#2b5fb8] transition-all"
                 >
-                  <Play className="w-6 h-6 fill-white" /> ENGAGE FLIGHT [SPACE / CLICK]
+                  <Play className="w-5 h-5 fill-white" /> {TITLE_TEXT.play[lang]}
                 </button>
 
                 {/* Universal Control Parity Badges */}
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3 font-mono text-xs text-gray-300">
-                  <div className="px-3 py-1.5 rounded-xl bg-surface-container-high/80 border border-white/10 flex items-center gap-2">
-                    <Gamepad2 className="w-4 h-4 text-cyan-400" />
-                    <span>KEYBOARD: WASD / ARROWS</span>
+                <div className="mt-6 flex flex-wrap items-center gap-3 font-mono text-xs text-gray-200">
+                  <div className="px-3 py-1.5 rounded-lg bg-[#15141f]/75 border border-white/15 flex items-center gap-2">
+                    <Gamepad2 className="w-4 h-4 text-[#f2c230]" />
+                    <span>{TITLE_TEXT.keyboard[lang]}</span>
                   </div>
-                  <div className="px-3 py-1.5 rounded-xl bg-surface-container-high/80 border border-white/10 flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-fuchsia-400" />
-                    <span>MOBILE: SWIPE & TAP</span>
+                  <div className="px-3 py-1.5 rounded-lg bg-[#15141f]/75 border border-white/15 flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-[#f2c230]" />
+                    <span>{TITLE_TEXT.mobile[lang]}</span>
                   </div>
                 </div>
               </div>

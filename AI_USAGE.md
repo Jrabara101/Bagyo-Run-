@@ -7,7 +7,8 @@ AI assistant: Claude (Anthropic), via Claude Code. All output reviewed and commi
 | 1 Sim extraction | `8828025` | Refactoring the game rules into a deterministic `GameSimulation`, replay, tests; fixing a dev-server ws proxy error and a first-run freeze |
 | 2 New rules | `c703c44` | Course, signals, hearts, Go-Bag, scoring and server replay verification code; tests; retuning the jump |
 | 2 Art samples | — | Five procedural background mock-ups (art direction reference only, not in the game) |
-| 3 Quiz gates | Phase 3 commit | Gate placement and answering code, quiz HUD, results lessons, tests; **first drafts of the 37 quiz questions, lessons and Filipino translations** |
+| 3 Quiz gates | `8e2d460` | Gate placement and answering code, quiz HUD, results lessons, tests; **first drafts of the 37 quiz questions, lessons and Filipino translations** |
+| 4 Art | Phase 4 commit | Porting the chosen procedural art samples into the game renderer (scenery, hazards, items, kid, weather), title screen lockup and its Filipino text |
 
 ## Quiz content review
 

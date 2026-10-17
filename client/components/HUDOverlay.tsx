@@ -148,7 +148,9 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       {/* BOTTOM COCKPIT HUD DOCK                                                   */}
       {/* ========================================================================= */}
       <div className="w-full flex flex-col md:flex-row items-end justify-between gap-4 pointer-events-auto">
-        {/* Left: Active Power-up Status Rack */}
+        {/* Left column, so the kid in the center lane stays visible */}
+        <div className="flex flex-col items-start gap-3 w-full max-w-xs">
+        {/* Active Power-up Status Rack */}
         <div className="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-white/10">
@@ -189,8 +191,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           </div>
         </div>
 
-        {/* Center: Overdrive Adrenaline Condenser Gauge */}
-        <div className="flex flex-col items-center gap-2 w-full max-w-sm">
+        {/* Bayanihan gauge */}
+        <div className="flex flex-col items-center gap-2 w-full">
           <div className="flex items-center justify-between w-full px-1">
             <span className="font-mono text-[10px] text-neon-pink font-bold tracking-widest flex items-center gap-1.5">
               <Flame className="w-3.5 h-3.5 text-fuchsia-400 animate-pulse" />
@@ -233,6 +235,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           >
             {gameState.isBayanihanActive ? 'BAYANIHAN ACTIVE' : isOverdriveReady ? 'BAYANIHAN READY [SPACE]' : 'NEAR MISSES FILL THE METER'}
           </button>
+        </div>
         </div>
 
         {/* Right: Avionics Controls Cheatsheet */}

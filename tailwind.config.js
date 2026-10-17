@@ -43,6 +43,7 @@ export default {
       },
       fontFamily: {
         headline: ['Outfit', 'sans-serif'],
+        display: ['Bungee', 'Impact', 'Arial Black', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
         body: ['Plus Jakarta Sans', 'sans-serif'],
       },

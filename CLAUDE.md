@@ -59,12 +59,18 @@ npm run build      # production build
   never clear a low barrier or a hole). Server replay verification (`server/verify.ts`) was
   pulled forward from Phase 6 and `antiCheat.ts` deleted; the schema change and removing the
   fake runs are still Phase 6.
-- Renderer and UI still use the old neon art with placeholder palettes per area (Phase 4/5).
-  Art direction samples: https://claude.ai/artifact/CMXHz71xEg78xw8YfCdciD
+- Art direction chosen 2026-10-17: the "TAKBO!" samples (jeepney sign-paint, banig trim, Bungee font):
+  https://claude.ai/artifact/CMXHz71xEg78xw8YfCdciD
 - Phase 3 (quiz gates) — done 2026-10-17. 37 bilingual questions with sources in
   `shared/content/questions.ts` (all `reviewed: false` until checked against the source).
   `shared/sim/quiz.ts` places 2 seeded gates per area at `Area.gatesAtM`, keeps 60 m before /
   30 m after each gate free of hazards, and answers by the lane the player is in when crossing.
   Quiz banner, EN/FIL toggle (header), lessons on the results screen. AI use is logged in `AI_USAGE.md`.
-- Next: Phase 4 — art.
+- Phase 4 (art) — done 2026-10-17. New renderer in `client/render/` (`Renderer.ts`, `view.ts`
+  perspective, `art/` per subject) replaces `client/engine/canvasRenderer.ts`. Four areas painted per
+  4 m road band, sky/ground blended near area edges, rain/wind/lightning from `Signal.rain/wind`,
+  one drawing per hazard id, Go-Bag item icons, bamboo quiz gate, finish at the school, kid in a
+  yellow raincoat. Title screen shows the TAKBO! lockup over a dusk barangay. HUD panels themselves
+  are still the old neon style (Phase 5).
+- Next: Phase 5 — audio, full i18n, screens and HUD restyle.
 - The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

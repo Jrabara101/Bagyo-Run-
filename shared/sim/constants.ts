@@ -41,6 +41,7 @@ export const BAYANIHAN_MIN_GAUGE = 40;
 export const BAYANIHAN_SPEED_BOOST = 6;
 export const NEAR_MISS_GAUGE = 12;
 export const BAYANIHAN_PICKUP_GAUGE = 50;
+export const GATE_CORRECT_GAUGE = 25;
 export const POWERUP_DURATION_TICKS = 480; // 8 s
 
 export const CHUNK_LENGTH = 120;

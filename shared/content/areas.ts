@@ -12,6 +12,11 @@ export interface Area {
   endM: number;
   /** Relative weights; only hazards listed here appear in the area. */
   hazards: Partial<Record<HazardId, number>>;
+  /**
+   * Where the area's quiz gates stand (before a small seeded shift). Each gate's question shows
+   * 5 s ahead, so a gate must sit at least that far past the previous one.
+   */
+  gatesAtM: readonly number[];
 }
 
 export const AREAS: readonly Area[] = [
@@ -21,6 +26,7 @@ export const AREAS: readonly Area[] = [
     startM: 0,
     endM: 750,
     hazards: { debris_pile: 3, torn_tarp: 3, open_manhole: 2, swept_jeepney: 1 },
+    gatesAtM: [280, 560],
   },
   {
     id: 'estero',
@@ -28,6 +34,7 @@ export const AREAS: readonly Area[] = [
     startM: 750,
     endM: 1400,
     hazards: { floating_debris: 3, flood_hole: 3, debris_pile: 2, torn_tarp: 1 },
+    gatesAtM: [920, 1220],
   },
   {
     id: 'palayan',
@@ -35,6 +42,7 @@ export const AREAS: readonly Area[] = [
     startM: 1400,
     endM: 2200,
     hazards: { fallen_branch: 3, power_line: 2, flood_hole: 2, floating_debris: 1 },
+    gatesAtM: [1620, 1950],
   },
   {
     id: 'evac',
@@ -42,6 +50,7 @@ export const AREAS: readonly Area[] = [
     startM: 2200,
     endM: COURSE_LENGTH_M,
     hazards: { swept_jeepney: 3, debris_pile: 2, power_line: 2, open_manhole: 2 },
+    gatesAtM: [2250, 2410],
   },
 ];
 

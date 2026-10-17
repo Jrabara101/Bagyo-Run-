@@ -3,14 +3,23 @@ import { RunResult } from '../../shared/sim/types';
 import { HAZARDS } from '../../shared/content/hazards';
 import { GO_BAG_ITEMS } from '../../shared/content/items';
 import { STARTING_HEARTS } from '../../shared/sim/constants';
-import { RotateCcw, Share2, CheckCircle2, AlertTriangle, Trophy, Sparkles, LifeBuoy, Copy, Check } from 'lucide-react';
+import { Lang, questionById } from '../../shared/content/questions';
+import { RotateCcw, CheckCircle2, AlertTriangle, Trophy, Sparkles, LifeBuoy, Copy, Check, BookOpen, HelpCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+const LESSON_TEXT = {
+  gates: { en: 'Quiz gates correct', fil: 'Tamang sagot sa tanong' },
+  lessons: { en: 'Lessons from this run', fil: 'Mga aral mula sa takbong ito' },
+  answer: { en: 'Answer', fil: 'Sagot' },
+  source: { en: 'Source', fil: 'Pinagmulan' },
+};
 
 interface GameOverDialogProps {
   isOpen: boolean;
   runData: RunResult | null;
   validationStatus: { verified: boolean; reason: string; rank?: number } | null;
   ghostDeltaMeters: number;
+  lang: Lang;
   onRestart: () => void;
   onOpenLeaderboard: () => void;
 }
@@ -20,6 +29,7 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({
   runData,
   validationStatus,
   ghostDeltaMeters,
+  lang,
   onRestart,
   onOpenLeaderboard,
 }) => {
@@ -47,6 +57,7 @@ ${runData.finished ? 'Reached the evacuation center' : `Rescued at ${runData.dis
 Score: ${runData.score.toLocaleString()}
 Hearts left: ${runData.heartsLeft}/${STARTING_HEARTS}
 Go-Bag: ${runData.goBagCount}/${GO_BAG_ITEMS.length}
+Quiz gates: ${runData.gatesCorrect}/${runData.gatesTotal}
 Supplies: ${runData.supplies} · Near misses: ${runData.nearMisses}
 Time: ${(runData.ticks / 60).toFixed(1)} s`;
   };
@@ -59,7 +70,7 @@ Time: ${(runData.ticks / 60).toFixed(1)} s`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg glass-panel-glow rounded-3xl p-6 md:p-8 flex flex-col gap-6 text-white border border-cyan-500/30">
+      <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto glass-panel-glow rounded-3xl p-6 md:p-8 flex flex-col gap-6 text-white border border-cyan-500/30">
         {/* Header */}
         <div className="flex flex-col items-center text-center">
           <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
@@ -120,6 +131,41 @@ Time: ${(runData.ticks / 60).toFixed(1)} s`;
               {runData.supplies}
             </span>
           </div>
+        </div>
+
+        {/* Quiz gates and lessons */}
+        <div className="p-4 rounded-2xl bg-surface-container-high/60 border border-white/5 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 text-emerald-400" />
+              <span className="font-mono text-xs text-gray-300">{LESSON_TEXT.gates[lang]}</span>
+            </div>
+            <span className="font-mono text-sm font-bold text-emerald-300">
+              {runData.gatesCorrect}/{runData.gatesTotal}
+            </span>
+          </div>
+          {runData.wrongQuestionIds.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5" /> {LESSON_TEXT.lessons[lang]}
+              </span>
+              {runData.wrongQuestionIds.map((id) => {
+                const q = questionById(id);
+                return (
+                  <div key={id} className="rounded-xl bg-black/30 border border-white/5 p-3 text-left">
+                    <p className="text-sm font-semibold text-white">{q.prompt[lang]}</p>
+                    <p className="text-sm text-emerald-300 mt-1">
+                      {LESSON_TEXT.answer[lang]}: {q.choices[q.answer][lang]}
+                    </p>
+                    <p className="text-xs text-gray-300 mt-1 leading-relaxed">{q.lesson[lang]}</p>
+                    <p className="font-mono text-[10px] text-gray-500 mt-1.5">
+                      {LESSON_TEXT.source[lang]}: {q.source.org === 'Law' ? q.source.ref : `${q.source.org}, ${q.source.ref}`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Ghost Delta Split comparison */}

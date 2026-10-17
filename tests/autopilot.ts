@@ -1,13 +1,17 @@
 import { GameSimulation } from '../shared/sim/simulation';
 import { JUMP_AIR_SEC } from '../shared/sim/constants';
+import { GATE_CLEAR_BEFORE_M } from '../shared/sim/quiz';
 import type { Action, InputEvent, SimEvent } from '../shared/sim/types';
+
+export type QuizStrategy = 'correct' | 'wrong' | 'ignore';
 
 /**
  * A simple bot that plays a whole run: jumps holes and low hazards so it peaks over them,
- * slides under overhead ones, changes lanes around lane blockers, and fires Bayanihan when ready.
+ * slides under overhead ones, changes lanes around lane blockers, fires Bayanihan when ready,
+ * and at quiz gates moves to the right lane (or a wrong one, or stays put).
  * Used by tests to produce long, realistic input logs.
  */
-export function playAutopilot(seed: string, maxTicks = 20000) {
+export function playAutopilot(seed: string, { maxTicks = 20000, quiz = 'correct' as QuizStrategy } = {}) {
   const sim = new GameSimulation(seed);
   const inputLog: InputEvent[] = [];
   const events: SimEvent[] = [];
@@ -22,7 +26,11 @@ export function playAutopilot(seed: string, maxTicks = 20000) {
     const inLane = (l: number, within: number) => ahead.filter((o) => o.lane === l && o.zPos - sim.playerZ < within);
     const next = inLane(lane, 40).sort((a, b) => a.zPos - b.zPos)[0];
 
-    if (sim.bayanihanGauge >= 40 && !sim.isBayanihanActive) {
+    const gate = sim.activeGate;
+    const gateTarget = !gate || quiz === 'ignore' ? null : quiz === 'correct' ? gate.correctLane : (gate.correctLane + 1) % 3;
+    if (gate && gateTarget !== null && gateTarget !== lane && gate.z - sim.playerZ < GATE_CLEAR_BEFORE_M - 5) {
+      actions.push(gateTarget < lane ? 'LEFT' : 'RIGHT');
+    } else if (sim.bayanihanGauge >= 40 && !sim.isBayanihanActive) {
       actions.push('BAYANIHAN');
     } else if (next) {
       const dz = next.zPos - sim.playerZ;

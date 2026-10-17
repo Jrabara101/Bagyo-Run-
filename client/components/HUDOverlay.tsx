@@ -78,6 +78,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <span className="text-gray-600">{"♥".repeat(Math.max(0, STARTING_HEARTS - gameState.hearts))}</span>
             </span>
             <span className="text-amber-300">GO-BAG {gameState.goBag.length}/{GO_BAG_ITEMS.length}</span>
+            <span className="text-emerald-300">QUIZ {gameState.gatesCorrect}/{gameState.gatesTotal}</span>
           </div>
 
           {/* Ghost Delta Split Indicator */}

@@ -2,6 +2,7 @@ import { CollectibleEntity, GoBagItemId, LaneIndex, PowerUpType, TrackChunk } fr
 import { Mulberry32 } from './rng';
 import { CHUNK_LENGTH, FINISH_CLEAR_M } from './constants';
 import { placePattern } from './patterns';
+import { gatePlan, inGateClearZone } from './quiz';
 import { areaAt, COURSE_LENGTH_M } from '../content/areas';
 import { signalAt } from '../content/signals';
 import { GO_BAG_ITEMS } from '../content/items';
@@ -28,11 +29,7 @@ export interface GoBagPlacement {
  */
 export function goBagPlan(seed: string): GoBagPlacement[] {
   const rng = new Mulberry32(`${seed}_gobag`);
-  const order = GO_BAG_ITEMS.map((item) => item.id);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = rng.nextInt(0, i);
-    [order[i], order[j]] = [order[j], order[i]];
-  }
+  const order = rng.shuffle(GO_BAG_ITEMS.map((item) => item.id));
   const slice = (GO_BAG_END_M - GO_BAG_START_M) / order.length;
   return order.map((itemId, i) => ({
     itemId,
@@ -43,7 +40,8 @@ export function goBagPlan(seed: string): GoBagPlacement[] {
 
 /**
  * Deterministically generates the chunk at `chunkIndex` for `seed`. Client and server share it,
- * so the course is identical everywhere. Chunks past the finish line are empty.
+ * so the course is identical everywhere. Chunks past the finish line are empty, and quiz gate
+ * zones hold no hazards.
  */
 export function generateChunk(chunkIndex: number, seed: string): TrackChunk {
   const zStart = chunkIndex * CHUNK_LENGTH;
@@ -89,6 +87,10 @@ export function generateChunk(chunkIndex: number, seed: string): TrackChunk {
       }
     }
   }
+
+  // Quiz gates need a clear run-up so the player can read and pick a lane
+  const gates = gatePlan(seed);
+  chunk.obstacles = chunk.obstacles.filter((o) => !inGateClearZone(o.zPos, gates));
 
   for (const item of goBagPlan(seed)) {
     if (Math.floor(item.z / CHUNK_LENGTH) !== chunkIndex) continue;

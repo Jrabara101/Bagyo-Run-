@@ -6,6 +6,8 @@ import { PauseSheet } from './components/PauseSheet';
 import { GameOverDialog } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
 import { LeaderboardModal } from './components/LeaderboardModal';
+import { QuizGateBanner } from './components/QuizGateBanner';
+import type { Lang } from '../shared/content/questions';
 import { GameSettings, RunResult, RunSubmissionPayload, RunVerifyResponse, DailySeedConfig } from '../shared/sim/types';
 import {
   Play,
@@ -53,6 +55,22 @@ export function App() {
   const [lastResult, setLastResult] = useState<RunResult | null>(null);
   const [validationStatus, setValidationStatus] = useState<{ verified: boolean; reason: string; rank?: number } | null>(null);
   const [isServerConnected, setIsServerConnected] = useState<boolean>(false);
+  const [lang, setLang] = useState<Lang>(() => {
+    try {
+      return localStorage.getItem('bagyo-lang') === 'fil' ? 'fil' : 'en';
+    } catch {
+      return 'en';
+    }
+  });
+  const toggleLang = () => {
+    const next: Lang = lang === 'en' ? 'fil' : 'en';
+    setLang(next);
+    try {
+      localStorage.setItem('bagyo-lang', next);
+    } catch {
+      // Storage blocked: the choice lasts for this page only
+    }
+  };
 
   // Fetch Daily Seed Config from Backend on mount with retry
   useEffect(() => {
@@ -134,6 +152,7 @@ export function App() {
   const {
     gameState,
     ghostDeltaMeters,
+    gateFeedback,
     startGame,
     pauseGame,
     resumeGame,
@@ -265,6 +284,18 @@ export function App() {
               </span>
             </div>
 
+            {/* Language Toggle */}
+            <button
+              onClick={toggleLang}
+              className="px-2.5 py-1.5 rounded-xl bg-surface-container-high/80 hover:bg-surface-container-highest font-mono text-xs font-bold border border-white/5 transition-colors"
+              title={lang === 'en' ? 'Lumipat sa Filipino' : 'Switch to English'}
+              aria-label={lang === 'en' ? 'Lumipat sa Filipino' : 'Switch to English'}
+            >
+              <span className={lang === 'en' ? 'text-white' : 'text-gray-500'}>EN</span>
+              <span className="text-gray-600"> / </span>
+              <span className={lang === 'fil' ? 'text-white' : 'text-gray-500'}>FIL</span>
+            </button>
+
             {/* Audio Toggle */}
             <button
               onClick={() => setIsAudioMuted(!isAudioMuted)}
@@ -322,6 +353,10 @@ export function App() {
             />
           )}
 
+          {(gameState.status === 'RUNNING' || gameState.status === 'PAUSED') && (
+            <QuizGateBanner gate={gameState.gate} feedback={gateFeedback} gatesTotal={gameState.gatesTotal} lang={lang} />
+          )}
+
           {/* Instant Sprint Onboarding Splash Screen (When IDLE) */}
           {gameState.status === 'IDLE' && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-md">
@@ -333,7 +368,7 @@ export function App() {
                   NEON CHASM
                 </h1>
                 <p className="font-mono text-xs md:text-sm text-gray-300 mt-2 max-w-md">
-                  Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. You have 3 hearts.
+                  Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. At each quiz gate, run into the lane with the right answer. You have 3 hearts.
                 </p>
 
                 {/* Primary Launch Action */}
@@ -385,6 +420,7 @@ export function App() {
         runData={lastResult}
         validationStatus={validationStatus}
         ghostDeltaMeters={ghostDeltaMeters}
+        lang={lang}
         onRestart={() => {
           resetGame();
           startGame();

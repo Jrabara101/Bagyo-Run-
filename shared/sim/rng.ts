@@ -53,4 +53,13 @@ export class Mulberry32 {
   public pick<T>(arr: T[]): T {
     return arr[Math.floor(this.next() * arr.length)];
   }
+
+  /** Fisher-Yates shuffle, in place. Returns the same array. */
+  public shuffle<T>(arr: T[]): T[] {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = this.nextInt(0, i);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
 }

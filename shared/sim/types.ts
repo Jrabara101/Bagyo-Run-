@@ -72,6 +72,16 @@ export type SimEvent =
   | { type: 'NEAR_MISS'; combo: number }
   | { type: 'SHIELD_ABSORBED'; hazardId: HazardId }
   | { type: 'HAZARD_HIT'; hazardId: HazardId; heartsLeft: number }
+  | { type: 'GATE_SHOWN'; gateIndex: number; questionId: string }
+  | {
+      type: 'GATE_ANSWERED';
+      gateIndex: number;
+      questionId: string;
+      chosenLane: LaneIndex;
+      correctLane: LaneIndex;
+      correct: boolean;
+      points: number;
+    }
   | { type: 'SIGNAL_UP'; level: SignalLevel }
   | { type: 'AREA_ENTERED'; areaId: AreaId }
   | { type: 'FINISHED' }
@@ -85,11 +95,13 @@ export interface RunResult {
   heartsLeft: number;
   hits: number;
   gatesCorrect: number;
+  gatesTotal: number;
   goBagCount: number;
   supplies: number;
   nearMisses: number;
   maxCombo: number;
   ticks: number;
+  /** Questions answered wrong, in course order; the results screen teaches these. */
   wrongQuestionIds: string[];
   /** The hazard that took the last heart, when the run ended in a rescue. */
   rescuedBy?: HazardId;
@@ -115,6 +127,20 @@ export interface HudState {
   isBayanihanActive: boolean;
   activePowerUps: { type: PowerUpType; expiresAtMs: number }[];
   ghostDistanceMeters: number;
+  gatesCorrect: number;
+  gatesTotal: number;
+  /** The quiz gate being asked right now, if any. */
+  gate: ActiveGateHud | null;
+}
+
+export interface ActiveGateHud {
+  index: number;
+  questionId: string;
+  /** Choice index standing in each lane, left to right. */
+  laneChoices: [number, number, number];
+  metersLeft: number;
+  /** The lane the player would answer with if they crossed now. */
+  lane: LaneIndex;
 }
 
 export interface TelemetryPoint {

@@ -37,7 +37,7 @@ describe('course content', () => {
       const end = i + 1 < SIGNALS.length ? SIGNALS[i + 1].startM : COURSE_LENGTH_M;
       seconds += (end - SIGNALS[i].startM) / SIGNALS[i].speed;
     }
-    expect(seconds).toBeGreaterThanOrEqual(105); // gates add time in Phase 3
+    expect(seconds).toBeGreaterThanOrEqual(105);
     expect(seconds).toBeLessThanOrEqual(180);
   });
 });

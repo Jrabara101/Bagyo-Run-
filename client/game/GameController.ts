@@ -15,6 +15,7 @@ import { GameSimulation, TICK_MS } from '../../shared/sim/simulation';
 import { FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants';
 import { SIGNALS } from '../../shared/content/signals';
 import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
+import { GATES_PER_AREA } from '../../shared/sim/quiz';
 import { CanvasRenderer, RenderBiome } from '../engine/canvasRenderer';
 import { soundEngine } from '../engine/audio';
 
@@ -30,10 +31,23 @@ const AREA_PALETTE: Record<AreaId, RenderBiome> = {
   evac: 'neon_city',
 };
 
+/** The last gate answer, shown briefly after the player crosses a gate. */
+export interface GateFeedback {
+  gateIndex: number;
+  questionId: string;
+  correct: boolean;
+  chosenLane: LaneIndex;
+  correctLane: LaneIndex;
+  points: number;
+}
+
 export interface HudSnapshot {
   state: HudState;
   ghostDeltaMeters: number;
+  gateFeedback: GateFeedback | null;
 }
+
+const GATE_FEEDBACK_MS = 2600;
 
 export interface ControllerCallbacks {
   /** Throttled while running, and immediately on every status change. */
@@ -64,6 +78,8 @@ export class GameController {
   private lastTime = 0;
   private accumulator = 0;
   private hudTimer = 0;
+  private gateFeedback: GateFeedback | null = null;
+  private gateFeedbackUntilMs = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -101,6 +117,7 @@ export class GameController {
     this.ghostZ = 0;
     this.ghostLane = 1;
     this.accumulator = 0;
+    this.gateFeedback = null;
     this.setStatus('IDLE');
   }
 
@@ -163,6 +180,7 @@ export class GameController {
       sim.player,
       sim.playerZ,
       sim.chunks,
+      this.renderGate(),
       AREA_PALETTE[sim.areaId],
       sim.isBayanihanActive,
       this.ghostTelemetry ? this.ghostZ : null,
@@ -233,8 +251,33 @@ export class GameController {
         case 'AREA_ENTERED':
           this.emitHud();
           break;
+        case 'GATE_SHOWN':
+          soundEngine.playLaneShift();
+          this.emitHud();
+          break;
+        case 'GATE_ANSWERED': {
+          const { type: _type, ...feedback } = event;
+          this.gateFeedback = feedback;
+          this.gateFeedbackUntilMs = this.sim.elapsedMs + GATE_FEEDBACK_MS;
+          if (event.correct) {
+            soundEngine.playOverdrive();
+            const p = this.playerScreenPos();
+            this.renderer.addCoinBurst(p.x, p.y);
+          } else {
+            soundEngine.playImpact();
+          }
+          this.emitHud();
+          break;
+        }
       }
     }
+  }
+
+  /** The next gate while it is within drawing range, with the answer lane once it is crossed. */
+  private renderGate() {
+    const gate = this.sim.gates[this.sim.nextGate];
+    if (!gate) return null;
+    return { z: gate.z, highlightLane: this.sim.gateShown ? this.sim.player.lane : null };
   }
 
   private submission(): RunSubmissionPayload {
@@ -286,8 +329,11 @@ export class GameController {
   private emitHud() {
     const sim = this.sim;
     const distance = Math.floor(Math.min(sim.playerZ, COURSE_LENGTH_M));
+    if (this.gateFeedback && sim.elapsedMs > this.gateFeedbackUntilMs) this.gateFeedback = null;
+    const gate = sim.activeGate;
     this.callbacks.onHud({
       ghostDeltaMeters: this.ghostTelemetry ? Math.floor(distance - this.ghostZ) : 0,
+      gateFeedback: this.gateFeedback,
       state: {
         status: this.status,
         seed: sim.seed,
@@ -305,6 +351,15 @@ export class GameController {
         isBayanihanActive: sim.isBayanihanActive,
         activePowerUps: sim.powerUps.map((p) => ({ type: p.type, expiresAtMs: p.expiresAtTick * TICK_MS })),
         ghostDistanceMeters: Math.floor(this.ghostZ),
+        gatesCorrect: sim.gatesCorrect,
+        gatesTotal: sim.gates.length,
+        gate: gate && {
+          index: gate.index,
+          questionId: gate.questionId,
+          laneChoices: gate.laneChoices,
+          metersLeft: Math.max(0, Math.ceil(gate.z - sim.playerZ)),
+          lane: sim.player.lane,
+        },
       },
     });
   }
@@ -312,6 +367,7 @@ export class GameController {
 
 export const INITIAL_HUD = (seed: string): HudSnapshot => ({
   ghostDeltaMeters: 0,
+  gateFeedback: null,
   state: {
     status: 'IDLE',
     seed,
@@ -329,5 +385,8 @@ export const INITIAL_HUD = (seed: string): HudSnapshot => ({
     isBayanihanActive: false,
     activePowerUps: [],
     ghostDistanceMeters: 0,
+    gatesCorrect: 0,
+    gatesTotal: AREAS.length * GATES_PER_AREA,
+    gate: null,
   },
 });

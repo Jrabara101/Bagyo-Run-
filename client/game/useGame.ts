@@ -61,6 +61,7 @@ export function useGame(
   return {
     gameState: hud.state,
     ghostDeltaMeters: hud.ghostDeltaMeters,
+    gateFeedback: hud.gateFeedback,
     startGame,
     pauseGame,
     resumeGame,

@@ -14,11 +14,13 @@ import {
   BAYANIHAN_SPEED_BOOST,
   BAYANIHAN_PICKUP_GAUGE,
   NEAR_MISS_GAUGE,
+  GATE_CORRECT_GAUGE,
   POWERUP_DURATION_TICKS,
   CHUNK_LENGTH,
   CHUNKS_AHEAD,
 } from './constants';
-import { distancePoints, finishBonus, nearMissPoints, nextCombo, SCORE, supplyPoints } from './scoring';
+import { distancePoints, finishBonus, gatePoints, nearMissPoints, nextCombo, SCORE, supplyPoints } from './scoring';
+import { gatePlan, QuizGate } from './quiz';
 import { areaAt, COURSE_LENGTH_M } from '../content/areas';
 import { signalAt } from '../content/signals';
 import { GO_BAG_ITEMS } from '../content/items';
@@ -69,10 +71,19 @@ export class GameSimulation {
   public powerUps: ActivePowerUp[] = [];
   public rescuedBy: HazardId | undefined;
 
+  public readonly gates: readonly QuizGate[];
+  /** The next gate to reach; `gates.length` once all are answered. */
+  public nextGate = 0;
+  /** Whether the next gate's question is on screen. */
+  public gateShown = false;
+  public gatesCorrect = 0;
+  public wrongQuestionIds: string[] = [];
+
   private currentChunkIndex = 0;
 
   constructor(seed: string) {
     this.seed = seed;
+    this.gates = gatePlan(seed);
     for (let i = 0; i < CHUNKS_AHEAD; i++) {
       this.chunks.push(generateChunk(i, seed));
     }
@@ -118,13 +129,14 @@ export class GameSimulation {
       finished: this.status === 'FINISHED',
       heartsLeft: this.hearts,
       hits: this.hits,
-      gatesCorrect: 0,
+      gatesCorrect: this.gatesCorrect,
+      gatesTotal: this.gates.length,
       goBagCount: this.goBag.length,
       supplies: this.supplies,
       nearMisses: this.nearMisses,
       maxCombo: Number(this.maxCombo.toFixed(2)),
       ticks: this.tick,
-      wrongQuestionIds: [],
+      wrongQuestionIds: [...this.wrongQuestionIds],
       rescuedBy: this.rescuedBy,
     };
   }
@@ -181,6 +193,7 @@ export class GameSimulation {
     this.updateZone(events);
     this.recycleChunks();
     this.resolveContacts(events);
+    this.resolveGate(events);
 
     this.score += distancePoints(Math.max(0, Math.min(this.playerZ, COURSE_LENGTH_M) - prevZ), this.combo);
     this.powerUps = this.powerUps.filter((p) => p.expiresAtTick > this.tick);
@@ -206,6 +219,48 @@ export class GameSimulation {
       this.areaId = area;
       events.push({ type: 'AREA_ENTERED', areaId: area });
     }
+  }
+
+  /** The active gate, if its question is showing. */
+  get activeGate(): QuizGate | null {
+    return this.gateShown ? this.gates[this.nextGate] : null;
+  }
+
+  /**
+   * Shows the next gate's question once the player is close enough, and answers it with the
+   * player's lane when they cross the gate line. Right: points x signal and Bayanihan charge.
+   * Wrong: no bonus, and the question goes on the lessons list.
+   */
+  private resolveGate(events: SimEvent[]) {
+    const gate = this.gates[this.nextGate];
+    if (!gate) return;
+    if (!this.gateShown && this.playerZ >= gate.showZ) {
+      this.gateShown = true;
+      events.push({ type: 'GATE_SHOWN', gateIndex: gate.index, questionId: gate.questionId });
+    }
+    if (this.playerZ < gate.z) return;
+
+    const chosenLane = this.kinematics.player.lane;
+    const correct = chosenLane === gate.correctLane;
+    const points = correct ? gatePoints(this.signal) : 0;
+    if (correct) {
+      this.gatesCorrect += 1;
+      this.score += points;
+      this.bayanihanGauge = Math.min(100, this.bayanihanGauge + GATE_CORRECT_GAUGE);
+    } else {
+      this.wrongQuestionIds.push(gate.questionId);
+    }
+    events.push({
+      type: 'GATE_ANSWERED',
+      gateIndex: gate.index,
+      questionId: gate.questionId,
+      chosenLane,
+      correctLane: gate.correctLane,
+      correct,
+      points,
+    });
+    this.nextGate += 1;
+    this.gateShown = false;
   }
 
   /** Drops chunks behind the player and keeps CHUNKS_AHEAD generated in front. */

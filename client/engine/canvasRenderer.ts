@@ -4,6 +4,14 @@ import { LANE_X_POSITIONS } from '../../shared/sim/constants';
 /** Placeholder palettes from the original game; Phase 4 replaces them with the four areas. */
 export type RenderBiome = 'neon_city' | 'sky_bridge' | 'magma_vault';
 
+/** A quiz gate to draw: where it stands, and the lane to highlight while its question is up. */
+export interface RenderGate {
+  z: number;
+  highlightLane: LaneIndex | null;
+}
+
+const GATE_LETTERS = ['A', 'B', 'C'] as const;
+
 export interface RenderParticle {
   x: number;
   y: number;
@@ -133,6 +141,7 @@ export class CanvasRenderer {
     player: PlayerPhysicsState,
     playerZ: number,
     chunks: TrackChunk[],
+    gate: RenderGate | null,
     biome: RenderBiome,
     isOverdrive: boolean,
     ghostZ: number | null,
@@ -173,7 +182,7 @@ export class CanvasRenderer {
     this.renderTrack(playerZ, biome, isOverdrive);
 
     // 3. Render In-World Obstacles & Collectibles from active chunks
-    this.renderEntities(chunks, playerZ, biome);
+    this.renderEntities(chunks, gate, playerZ, biome);
 
     // 4. Render Ghost Hologram Runner (if available)
     if (ghostZ !== null && ghostLane !== null) {
@@ -387,12 +396,17 @@ export class CanvasRenderer {
     ctx.shadowBlur = 0;
   }
 
-  private renderEntities(chunks: TrackChunk[], playerZ: number, biome: RenderBiome) {
-    const ctx = this.ctx;
-
+  private renderEntities(chunks: TrackChunk[], gate: RenderGate | null, playerZ: number, biome: RenderBiome) {
     // Collect all visible entities sorted from furthest to closest (painter's algorithm)
-    type Renderable = { type: 'obstacle'; entity: ObstacleEntity; zRel: number } | { type: 'collectible'; entity: CollectibleEntity; zRel: number };
+    type Renderable =
+      | { type: 'obstacle'; entity: ObstacleEntity; zRel: number }
+      | { type: 'collectible'; entity: CollectibleEntity; zRel: number }
+      | { type: 'gate'; entity: RenderGate; zRel: number };
     const renderQueue: Renderable[] = [];
+
+    if (gate && gate.z - playerZ > -2 && gate.z - playerZ < 170) {
+      renderQueue.push({ type: 'gate', entity: gate, zRel: gate.z - playerZ });
+    }
 
     for (const chunk of chunks) {
       for (const obs of chunk.obstacles) {
@@ -415,6 +429,8 @@ export class CanvasRenderer {
     for (const item of renderQueue) {
       if (item.type === 'obstacle') {
         this.drawObstacle(item.entity, item.zRel, biome);
+      } else if (item.type === 'gate') {
+        this.drawGate(item.entity, item.zRel);
       } else {
         this.drawCollectible(item.entity, item.zRel);
       }
@@ -515,6 +531,54 @@ export class CanvasRenderer {
       ctx.arc(proj.x + trainW * 0.28, proj.y - trainH * 0.4, 6 * proj.scale, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
+    }
+  }
+
+  /** Quiz gate: a painted arch over the road with an A / B / C board above each lane. */
+  private drawGate(gate: RenderGate, zRel: number) {
+    if (zRel <= 0.8) return;
+    const ctx = this.ctx;
+    const left = this.project(-1.62, 0, zRel);
+    const right = this.project(1.62, 0, zRel);
+    if (!left.visible) return;
+    const s = left.scale;
+    const postW = Math.max(2, 10 * s);
+    const archTop = 165 * s;
+    const beamH = 16 * s;
+
+    // Posts and beam, jeepney-paint red with a yellow trim
+    ctx.fillStyle = '#b3261e';
+    ctx.fillRect(left.x - postW / 2, left.y - archTop, postW, archTop);
+    ctx.fillRect(right.x - postW / 2, right.y - archTop, postW, archTop);
+    ctx.fillRect(left.x - postW / 2, left.y - archTop, right.x - left.x + postW, beamH);
+    ctx.fillStyle = '#f7be1d';
+    ctx.fillRect(left.x - postW / 2, left.y - archTop + beamH, right.x - left.x + postW, Math.max(1, 3 * s));
+
+    if (s > 0.25) {
+      ctx.font = `900 ${Math.floor(12 * s)}px "JetBrains Mono"`;
+      ctx.fillStyle = '#fff4d6';
+      ctx.textAlign = 'center';
+      ctx.fillText('QUIZ GATE · TANONG', (left.x + right.x) / 2, left.y - archTop + beamH * 0.75);
+    }
+
+    // One board per lane
+    for (let lane = 0; lane < 3; lane++) {
+      const x = LANE_X_POSITIONS[lane as LaneIndex];
+      const bl = this.project(x - 0.36, 0, zRel);
+      const br = this.project(x + 0.36, 0, zRel);
+      const top = archTop - beamH - 6 * s;
+      const h = 48 * s;
+      const lit = gate.highlightLane === lane;
+      ctx.fillStyle = lit ? '#f7be1d' : '#fff4d6';
+      ctx.strokeStyle = '#1b2a4a';
+      ctx.lineWidth = Math.max(1, 3 * s);
+      ctx.fillRect(bl.x, bl.y - top, br.x - bl.x, h);
+      ctx.strokeRect(bl.x, bl.y - top, br.x - bl.x, h);
+      if (s > 0.2) {
+        ctx.font = `900 ${Math.floor(34 * s)}px "JetBrains Mono"`;
+        ctx.fillStyle = '#1b2a4a';
+        ctx.fillText(GATE_LETTERS[lane], (bl.x + br.x) / 2, bl.y - top + h * 0.78);
+      }
     }
   }
 

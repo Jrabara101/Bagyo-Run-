@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { LeaderboardRecord } from '../../shared/sim/types';
 import { Lang, UI, UiKey } from '../../shared/content/i18n';
-import { Trophy, X, ShieldCheck, Ghost } from 'lucide-react';
+import { Trophy, X, ShieldCheck, Ghost, WifiOff } from 'lucide-react';
+import { localBoard } from '../game/localRuns';
 
 interface LeaderboardModalProps {
   isOpen: boolean;
   currentSeed: string;
   lang: Lang;
   onClose: () => void;
-  onRaceGhost: (seed: string, ghostTelemetryUrl: string) => void;
+  onRaceGhost: (runId: string) => void;
 }
 
 const MEDALS = ['#f2c230', '#d9dde2', '#c98a4a'];
@@ -17,6 +18,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, curr
   const [records, setRecords] = useState<LeaderboardRecord[]>([]);
   const [filterSeed, setFilterSeed] = useState<'all' | 'current'>('all');
   const [loading, setLoading] = useState<boolean>(true);
+  const [offline, setOffline] = useState(false);
   const t = (key: UiKey) => UI[key][lang];
 
   useEffect(() => {
@@ -24,9 +26,18 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, curr
     setLoading(true);
     const query = filterSeed === 'current' ? `?seed=${encodeURIComponent(currentSeed)}` : '';
     fetch(`/api/leaderboard${query}`)
-      .then((res) => res.json())
-      .then((data) => setRecords(data.records || []))
-      .catch(() => setRecords([]))
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setRecords(data.records || []);
+        setOffline(false);
+      })
+      .catch(() => {
+        setRecords(localBoard(filterSeed === 'current' ? currentSeed : undefined));
+        setOffline(true);
+      })
       .finally(() => setLoading(false));
   }, [isOpen, filterSeed, currentSeed]);
 
@@ -65,6 +76,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, curr
           ))}
         </div>
 
+        {offline && (
+          <p className="text-xs text-[#f0862a] flex items-center gap-2">
+            <WifiOff className="w-4 h-4" /> {t('offlineBoard')}
+          </p>
+        )}
+
         <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-1.5">
           {loading ? (
             <p className="py-10 text-center text-sm text-[#aaa6b8] animate-pulse">{t('loading')}</p>
@@ -79,7 +96,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, curr
                   </span>
                   <div className="flex flex-col min-w-0">
                     <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
-                      {r.playerName} <ShieldCheck className="w-3.5 h-3.5 text-[#6cc070] shrink-0" aria-label={t('verified')} />
+                      {r.playerName} {!offline && <ShieldCheck className="w-3.5 h-3.5 text-[#6cc070] shrink-0" aria-label={t('verified')} />}
                     </span>
                     <span className="font-mono text-[10px] text-[#aaa6b8] truncate">
                       {t('seed')}: {r.seed}
@@ -89,11 +106,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, curr
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="flex flex-col items-end">
                     <span className="font-display text-sm">{r.score.toLocaleString('en-US')}</span>
-                    <span className="text-[10px] text-[#aaa6b8]">{(r.distance / 1000).toFixed(2)} km</span>
+                    <span className="text-[10px] text-[#aaa6b8]">
+                      {(r.distance / 1000).toFixed(2)} km · {t('quiz')} {r.gatesCorrect}/{r.gatesTotal}
+                    </span>
                   </div>
-                  {r.hasGhost && (
+                  {!offline && (
                     <button
-                      onClick={() => onRaceGhost(r.seed, `/api/ghosts/${encodeURIComponent(r.seed)}`)}
+                      onClick={() => onRaceGhost(r.id)}
                       className="btn-plain px-2.5 py-1.5 text-[10px] flex items-center gap-1.5"
                     >
                       <Ghost className="w-3.5 h-3.5 text-[#8fd3ff]" /> {t('raceGhost')}

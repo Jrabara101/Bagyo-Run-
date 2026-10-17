@@ -4,7 +4,7 @@ import { PRACTICE_SEED } from './game/GameController';
 import { useInputControls } from './hooks/useInputControls';
 import { HUDOverlay } from './components/HUDOverlay';
 import { PauseSheet } from './components/PauseSheet';
-import { GameOverDialog, VerifyState } from './components/GameOverDialog';
+import { GameOverDialog, VerifyStatus } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { QuizGateBanner } from './components/QuizGateBanner';
@@ -12,11 +12,14 @@ import { TitleScreen } from './components/screens/TitleScreen';
 import { HowToPlay } from './components/screens/HowToPlay';
 import { Credits } from './components/screens/Credits';
 import { audio } from './audio/AudioEngine';
+import { saveLocalRun } from './game/localRuns';
+import { dailyChallenge, manilaDateKey } from '../shared/sim/daily';
 import { Lang, UI, UiKey } from '../shared/content/i18n';
-import { GameSettings, RunResult, RunSubmissionPayload, RunVerifyResponse, DailySeedConfig } from '../shared/sim/types';
+import { DailyChallenge, GameSettings, GhostTrack, RunResult, RunSubmissionPayload, RunVerifyResponse } from '../shared/sim/types';
 import { Volume2, VolumeX, Settings, Maximize2, Calendar, Trophy, Radio, Lightbulb } from 'lucide-react';
 
 const DEFAULT_SETTINGS: GameSettings = {
+  playerName: '',
   masterVolume: 0.7,
   sfxVolume: 0.8,
   musicVolume: 0.6,
@@ -55,8 +58,10 @@ export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Read URL seed parameter if provided (e.g. ?seed=...)
-  const initialUrlSeed = new URLSearchParams(window.location.search).get('seed') || 'SEED-DAILY-GAUNTLET';
+  // A challenge link (?seed=...) or else today's daily challenge, worked out locally so it is the
+  // same seed with or without a server
+  const [todayLocal] = useState(() => dailyChallenge(manilaDateKey(Date.now())));
+  const [initialUrlSeed] = useState(() => new URLSearchParams(window.location.search).get('seed') || todayLocal.seed);
 
   const [settings, setSettings] = useState<GameSettings>(() =>
     readStored(SETTINGS_KEY, DEFAULT_SETTINGS, (raw) => ({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) }))
@@ -68,9 +73,9 @@ export function App() {
   const [isDailyCardOpen, setIsDailyCardOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
 
-  const [dailyConfig, setDailyConfig] = useState<DailySeedConfig | null>(null);
+  const [dailyConfig, setDailyConfig] = useState<DailyChallenge>(todayLocal);
   const [lastResult, setLastResult] = useState<RunResult | null>(null);
-  const [verify, setVerify] = useState<{ state: VerifyState; reason?: string; rank?: number } | null>(null);
+  const [verify, setVerify] = useState<VerifyStatus | null>(null);
   const [isServerConnected, setIsServerConnected] = useState<boolean>(false);
   const t = (key: UiKey) => UI[key][lang];
 
@@ -109,26 +114,23 @@ export function App() {
     };
   }, []);
 
-  // Fetch Daily Seed Config from Backend on mount with retry
+  // The server's copy of today's challenge adds the top run; until then the local one stands
   useEffect(() => {
     let isMounted = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchDaily = () => {
-      fetch('/api/runs/daily')
+      fetch('/api/daily')
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json();
         })
-        .then((data: DailySeedConfig) => {
+        .then((data: DailyChallenge) => {
           if (isMounted) setDailyConfig(data);
         })
         .catch(() => {
-          if (isMounted) {
-            setDailyConfig((prev) => prev || { seed: initialUrlSeed, dateKey: '', dailyTitle: '', dailyModifiers: [] });
-            // Retry after 3 seconds in case backend server is initializing
-            retryTimer = setTimeout(fetchDaily, 3000);
-          }
+          // Retry in case the server is still starting
+          if (isMounted) retryTimer = setTimeout(fetchDaily, 5000);
         });
     };
 
@@ -163,17 +165,24 @@ export function App() {
       setVerify({ state: 'practice' });
       return;
     }
+    const playerName = settingsRef.current.playerName.trim();
+    saveLocalRun(result, playerName);
     setVerify({ state: 'checking' });
 
-    fetch('/api/runs/verify', {
+    fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, playerName }),
     })
-      .then((res) => res.json() as Promise<RunVerifyResponse>)
+      .then(async (res) => {
+        // 422 and 500 still carry a code; anything else (proxy down, HTML error) counts as offline
+        const body = (await res.json()) as RunVerifyResponse;
+        if (!body || typeof body.code !== 'string') throw new Error('No verify code');
+        return body;
+      })
       .then((res) => {
-        const matches = res.verified && res.result?.score === result.score;
-        setVerify({ state: matches ? 'verified' : res.verified ? 'mismatch' : 'rejected', reason: res.reason, rank: res.rank });
+        if (res.verified && res.result && res.result.score !== result.score) setVerify({ state: 'mismatch' });
+        else setVerify({ state: 'answered', code: res.code, rank: res.rank });
       })
       .catch(() => setVerify({ state: 'offline' }));
   };
@@ -193,8 +202,11 @@ export function App() {
     handleJump,
     handleSlide,
     triggerOverdrive,
-    loadGhostTelemetry,
+    raceGhost,
   } = useGame(canvasRef, initialUrlSeed, settings, handleGameOverSubmission);
+
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   const statusRef = useRef(gameState.status);
   statusRef.current = gameState.status;
@@ -282,17 +294,19 @@ export function App() {
     startGame();
   };
 
-  const handleRaceGhost = (seed: string, ghostUrl: string) => {
-    fetch(ghostUrl)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.telemetry) {
-          loadGhostTelemetry(data.telemetry);
-        }
-        handleDeploySeed(seed);
+  const handleRaceGhost = (runId: string) => {
+    fetch(`/api/runs/${encodeURIComponent(runId)}/ghost`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<GhostTrack>;
+      })
+      .then((track) => {
+        setIsDailyCardOpen(false);
+        setIsLeaderboardOpen(false);
+        raceGhost(track.seed, track.points);
       })
       .catch(() => {
-        handleDeploySeed(seed);
+        // No ghost available: the leaderboard stays open
       });
   };
 
@@ -380,6 +394,7 @@ export function App() {
           {gameState.status === 'IDLE' && screen === 'title' && (
             <TitleScreen
               lang={lang}
+              storm={dailyConfig.storm}
               onPlay={startGame}
               onPractice={startPractice}
               onHowTo={() => setScreen('howto')}
@@ -419,6 +434,7 @@ export function App() {
         isOpen={gameState.status === 'ENDED' && !isLeaderboardOpen}
         runData={lastResult}
         verify={verify}
+        playerName={settings.playerName.trim()}
         lang={lang}
         onRestart={restart}
         onTitle={backToTitle}

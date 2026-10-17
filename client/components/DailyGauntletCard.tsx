@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { DailySeedConfig } from '../../shared/sim/types';
+import { DailyChallenge } from '../../shared/sim/types';
 import { Lang, UI, UiKey } from '../../shared/content/i18n';
 import { Calendar, Trophy, Link, Check, Play, X } from 'lucide-react';
 
 interface DailyGauntletCardProps {
   isOpen: boolean;
-  dailyConfig: DailySeedConfig | null;
+  dailyConfig: DailyChallenge | null;
   lang: Lang;
   onClose: () => void;
   onDeployDaily: (seed: string) => void;
@@ -37,11 +37,12 @@ export const DailyGauntletCard: React.FC<DailyGauntletCardProps> = ({ isOpen, da
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="font-display text-xs text-[#f2c230] flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" /> {t('daily')}
+              <Calendar className="w-4 h-4" /> {t('daily')} · {dailyConfig.dateKey}
             </span>
-            <h2 id="daily-title" className="font-display text-xl mt-1">
-              {dailyConfig.dailyTitle || t('dailyFallback')}
+            <h2 id="daily-title" className="takbo-logo font-display text-3xl mt-1">
+              {dailyConfig.storm[lang]}
             </h2>
+            <p className="text-sm text-[#f1ebdd]/85 mt-2">{t('dailyNote')}</p>
           </div>
           <button onClick={onClose} className="btn-icon p-1.5" aria-label={t('close')}>
             <X className="w-5 h-5" />
@@ -51,13 +52,13 @@ export const DailyGauntletCard: React.FC<DailyGauntletCardProps> = ({ isOpen, da
         <dl className="rounded-lg bg-black/25 p-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
           <dt className="text-[#aaa6b8]">{t('todaysSeed')}</dt>
           <dd className="font-mono font-bold text-right break-all">{dailyConfig.seed}</dd>
-          {dailyConfig.topRecord && (
+          {dailyConfig.topRun && (
             <>
               <dt className="text-[#aaa6b8] flex items-center gap-1.5">
                 <Trophy className="w-3.5 h-3.5 text-[#f2c230]" /> {t('seedRecord')}
               </dt>
               <dd className="text-right">
-                {dailyConfig.topRecord.score.toLocaleString('en-US')} {t('by')} {dailyConfig.topRecord.playerName}
+                {dailyConfig.topRun.score.toLocaleString('en-US')} {t('by')} {dailyConfig.topRun.playerName}
               </dd>
             </>
           )}

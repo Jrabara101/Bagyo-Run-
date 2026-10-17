@@ -79,6 +79,15 @@ npm run build      # production build
   Credits (`shared/content/credits.ts`: put the developer name there), Settings/Pause, Results.
   HUD and all dialogs restyled (`.hp`, `.sheet`, `.btn-jeep` in `client/index.css`). Settings,
   language and mute persist in localStorage.
-- Next: Phase 6 — server schema, daily seed titles, remove fake runs. Server verify `reason`
-  strings are still English only.
+- Phase 6 (server) — done 2026-10-18. `server/app.ts` (routes, testable with `inject`),
+  `db.ts` (schema v2; v1 tables renamed `legacy_v1_*`, not dropped; no fake runs), `store.ts`,
+  `verify.ts` (returns a `VerifyCode`, translated on the client). API: `GET /api/daily`,
+  `POST /api/runs`, `GET /api/leaderboard?seed=`, `GET /api/runs/:id/ghost` (ghost = server replay
+  of the stored inputs). Daily challenge is pure (`shared/sim/daily.ts`, Manila date, storm names
+  in `shared/content/storms.ts`), so the client knows today's seed offline; Play uses it by
+  default. `RULES_VERSION` in `shared/sim/constants.ts`: **bump it whenever a rules/content change
+  alters replays**; the board only lists the current version. Offline: runs are kept on the
+  device (`client/game/localRuns.ts`) and the leaderboard falls back to them. Runner name is a
+  setting. `server/websocket.ts` is parked (not registered) until the finals phase.
+- Next: Phase 7 — bug fixing from playtests, recording the trailer and gameplay videos.
 - The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

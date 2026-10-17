@@ -29,8 +29,8 @@ export const UI = {
   mobile: B('MOBILE: SWIPE & TAP', 'MOBILE: I-SWIPE AT I-TAP'),
   alert: B('ALERT', 'BABALA'),
   ticker: B(
-    'Typhoon Bayani: Signal No. 1 is up over Barangay Maligaya. Pack your Go-Bag and keep the radio on.',
-    'Bagyong Bayani: Signal No. 1 na sa Barangay Maligaya. Ihanda ang inyong Go-Bag at makinig sa radyo.'
+    '{storm}: Signal No. 1 is up over Barangay Maligaya. Pack your Go-Bag and keep the radio on.',
+    '{storm}: Signal No. 1 na sa Barangay Maligaya. Ihanda ang inyong Go-Bag at makinig sa radyo.'
   ),
   switchLang: B('Lumipat sa Filipino', 'Switch to English'),
   mute: B('Mute sound', 'I-mute ang tunog'),
@@ -117,6 +117,12 @@ export const UI = {
   replayMismatch: B('Server replay gave a different score', 'Iba ang iskor sa server replay'),
   practiceNotSubmitted: B('Practice runs are not submitted', 'Hindi ipinapasa ang pagsasanay'),
   rank: B('Rank', 'Puwesto'),
+  submittedAs: B('Submitted as', 'Ipinasa bilang'),
+  verifyBadData: B('Not verified: the run data was not valid', 'Hindi napatunayan: hindi tama ang datos ng takbo'),
+  verifyOldRules: B('Played on an older version of the game. Reload the page to get the latest.', 'Nilaro sa lumang bersyon ng laro. I-reload ang page para sa pinakabago.'),
+  verifyTickMismatch: B('Not verified: the server replay ended at a different moment', 'Hindi napatunayan: iba ang oras ng pagtatapos sa server replay'),
+  verifyNotEnded: B('Not verified: the server replay did not reach the end', 'Hindi napatunayan: hindi umabot sa dulo ang server replay'),
+  verifySaveFailed: B('Verified, but the server could not save it', 'Napatunayan, pero hindi ito naitala ng server'),
 
   // Leaderboard and daily challenge
   topRunners: B('Top runners', 'Nangungunang runner'),
@@ -132,7 +138,11 @@ export const UI = {
   playDaily: B('Play the daily challenge', 'Laruin ang hamon ngayong araw'),
   copyLink: B('Copy challenge link', 'Kopyahin ang link ng hamon'),
   linkCopied: B('Challenge link copied!', 'Nakopya ang link!'),
-  dailyFallback: B('Daily run to the evacuation center', 'Araw-araw na takbo sa evacuation center'),
+  todaysStorm: B("Today's storm", 'Bagyo ngayong araw'),
+  dailyNote: B('Everyone gets the same course and the same quiz today. A new storm arrives at midnight, Philippine time.', 'Pare-pareho ang daan at tanong para sa lahat ngayong araw. May bagong bagyo pagsapit ng hatinggabi, oras sa Pilipinas.'),
+  offlineBoard: B('Offline: showing your runs on this device', 'Offline: ipinapakita ang mga takbo mo sa device na ito'),
+  runnerName: B('Runner name', 'Pangalan ng runner'),
+  runnerNameHint: B('Shown on the leaderboard', 'Makikita sa talaan ng iskor'),
 
   // How to play
   htpGoalTitle: B('The goal', 'Ang layunin'),

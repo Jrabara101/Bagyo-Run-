@@ -143,11 +143,10 @@ export interface ActiveGateHud {
   lane: LaneIndex;
 }
 
-export interface TelemetryPoint {
+/** Where a ghost runner was at a moment of its run (sampled by the server's replay). */
+export interface GhostPoint {
   timeMs: number;
-  action: 'lane_shift' | 'jump' | 'slide' | 'bayanihan' | 'tick';
   lane: LaneIndex;
-  y: number;
   z: number;
 }
 
@@ -157,15 +156,29 @@ export interface RunSubmissionPayload {
   playerName: string;
   inputLog: InputEvent[];
   ticks: number;
-  /** Sampled positions, kept only for ghost playback. */
-  inputTelemetry: TelemetryPoint[];
+  /** RULES_VERSION the run was played under; older versions no longer replay the same. */
+  rulesVersion: number;
 }
 
+/** Why a submission was or was not accepted. The client shows these in the player's language. */
+export type VerifyCode =
+  | 'saved'
+  | 'bad_request'
+  | 'bad_seed'
+  | 'bad_length'
+  | 'bad_inputs'
+  | 'old_rules'
+  | 'tick_mismatch'
+  | 'not_ended'
+  | 'save_failed';
+
 export interface RunVerifyResponse {
-  runId?: string;
   verified: boolean;
-  reason: string;
+  code: VerifyCode;
+  runId?: string;
+  /** The server's own result from replaying the inputs. */
   result?: RunResult;
+  /** Place among players on this seed (each player's best run counts once). */
   rank?: number;
 }
 
@@ -173,30 +186,34 @@ export interface LeaderboardRecord {
   id: string;
   playerName: string;
   seed: string;
-  distance: number;
   score: number;
-  coins: number;
-  nearMisses: number;
-  maxCombo: number;
-  verified: boolean;
-  validationReason?: string;
+  distance: number;
+  finished: boolean;
+  heartsLeft: number;
+  gatesCorrect: number;
+  gatesTotal: number;
+  goBagCount: number;
   createdAt: string;
-  hasGhost: boolean;
 }
 
-export interface DailySeedConfig {
+export interface GhostTrack {
+  runId: string;
+  playerName: string;
   seed: string;
+  points: GhostPoint[];
+}
+
+/** Today's shared challenge: one seed and one storm for everyone, by the date in Manila. */
+export interface DailyChallenge {
   dateKey: string;
-  dailyTitle: string;
-  dailyModifiers: string[];
-  topRecord?: {
-    playerName: string;
-    distance: number;
-    score: number;
-  };
+  seed: string;
+  storm: { en: string; fil: string };
+  topRun?: { playerName: string; score: number };
 }
 
 export interface GameSettings {
+  /** Shown on the leaderboard; the server cleans it and falls back to RUNNER. */
+  playerName: string;
   masterVolume: number; // 0 - 1
   sfxVolume: number; // 0 - 1
   musicVolume: number; // 0 - 1

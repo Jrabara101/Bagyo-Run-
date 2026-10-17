@@ -9,7 +9,8 @@ AI assistant: Claude (Anthropic), via Claude Code. All output reviewed and commi
 | 2 Art samples | — | Five procedural background mock-ups (art direction reference only, not in the game) |
 | 3 Quiz gates | `8e2d460` | Gate placement and answering code, quiz HUD, results lessons, tests; **first drafts of the 37 quiz questions, lessons and Filipino translations** |
 | 4 Art | `c9aabde` | Porting the chosen procedural art samples into the game renderer (scenery, hazards, items, kid, weather), title screen lockup and its Filipino text |
-| 5 Audio + UI | Phase 5 commit | Procedural audio engine and music loop, bilingual UI string table and Filipino translations, How to Play / Practice / Credits / Results screens, HUD restyle |
+| 5 Audio + UI | `dced14e` | Procedural audio engine and music loop, bilingual UI string table and Filipino translations, How to Play / Practice / Credits / Results screens, HUD restyle |
+| 6 Server | Phase 6 commit | Server restructure, schema migration, replay-based ghosts, daily challenge and storm names, offline leaderboard, server tests |
 
 ## Quiz content review
 

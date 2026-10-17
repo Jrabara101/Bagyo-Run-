@@ -4,6 +4,8 @@ import { Lang, UI } from '../../../shared/content/i18n';
 
 interface TitleScreenProps {
   lang: Lang;
+  /** Today's storm, for the alert ticker */
+  storm: { en: string; fil: string };
   onPlay: () => void;
   onPractice: () => void;
   onHowTo: () => void;
@@ -14,7 +16,7 @@ interface TitleScreenProps {
 }
 
 /** TAKBO! lockup and the main menu, over the dusk barangay the renderer draws behind it. */
-export const TitleScreen: React.FC<TitleScreenProps> = ({ lang, onPlay, onPractice, onHowTo, onDaily, onLeaderboard, onSettings, onCredits }) => {
+export const TitleScreen: React.FC<TitleScreenProps> = ({ lang, storm, onPlay, onPractice, onHowTo, onDaily, onLeaderboard, onSettings, onCredits }) => {
   const menu = [
     { label: UI.practice[lang], icon: GraduationCap, onClick: onPractice },
     { label: UI.howToPlay[lang], icon: BookOpen, onClick: onHowTo },
@@ -60,7 +62,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ lang, onPlay, onPracti
       </p>
       <div className="absolute inset-x-0 bottom-0 bg-[#0a0810]/80 font-body text-xs md:text-sm px-4 py-2 whitespace-nowrap overflow-hidden text-ellipsis">
         <span className="font-display text-[#15141f] bg-[#f2c230] px-2 py-0.5 mr-2 rounded-sm">{UI.alert[lang]}</span>
-        {UI.ticker[lang]}
+        {UI.ticker[lang].replace('{storm}', storm[lang])}
       </div>
     </div>
   );

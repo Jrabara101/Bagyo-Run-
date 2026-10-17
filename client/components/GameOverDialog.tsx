@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RunResult } from '../../shared/sim/types';
+import { RunResult, VerifyCode } from '../../shared/sim/types';
 import { HAZARDS } from '../../shared/content/hazards';
 import { GO_BAG_ITEMS } from '../../shared/content/items';
 import { STARTING_HEARTS } from '../../shared/sim/constants';
@@ -8,12 +8,31 @@ import { Lang, UI, UiKey } from '../../shared/content/i18n';
 import { RotateCcw, CheckCircle2, AlertTriangle, Trophy, Copy, Check, BookOpen, Home, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export type VerifyState = 'checking' | 'verified' | 'offline' | 'mismatch' | 'rejected' | 'practice';
+/** Where the server check stands: waiting, a server answer (code), no server, or a practice run. */
+export type VerifyStatus =
+  | { state: 'checking' }
+  | { state: 'offline' }
+  | { state: 'practice' }
+  | { state: 'mismatch' }
+  | { state: 'answered'; code: VerifyCode; rank?: number };
+
+const CODE_TEXT: Record<VerifyCode, UiKey> = {
+  saved: 'verified',
+  bad_request: 'verifyBadData',
+  bad_seed: 'verifyBadData',
+  bad_length: 'verifyBadData',
+  bad_inputs: 'verifyBadData',
+  old_rules: 'verifyOldRules',
+  tick_mismatch: 'verifyTickMismatch',
+  not_ended: 'verifyNotEnded',
+  save_failed: 'verifySaveFailed',
+};
 
 interface GameOverDialogProps {
   isOpen: boolean;
   runData: RunResult | null;
-  verify: { state: VerifyState; reason?: string; rank?: number } | null;
+  verify: VerifyStatus | null;
+  playerName: string;
   lang: Lang;
   onRestart: () => void;
   onTitle: () => void;
@@ -21,7 +40,7 @@ interface GameOverDialogProps {
 }
 
 /** Results: how the run went, the lessons from wrong answers, and whether the server agreed. */
-export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData, verify, lang, onRestart, onTitle, onOpenLeaderboard }) => {
+export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData, verify, playerName, lang, onRestart, onTitle, onOpenLeaderboard }) => {
   const [copied, setCopied] = useState(false);
   const t = (key: UiKey) => UI[key][lang];
 
@@ -61,14 +80,12 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData,
     ['time', `${(runData.ticks / 60).toFixed(1)} s`],
   ];
 
-  const verifyText: Record<VerifyState, string> = {
-    checking: t('verifying'),
-    verified: t('verified'),
-    offline: t('offlineNotSubmitted'),
-    mismatch: t('replayMismatch'),
-    rejected: `${t('notVerified')}${verify?.reason ? `: ${verify.reason}` : ''}`,
-    practice: t('practiceNotSubmitted'),
-  };
+  const saved = verify?.state === 'answered' && verify.code === 'saved';
+  const verifyText = !verify
+    ? ''
+    : verify.state === 'answered'
+      ? `${t(CODE_TEXT[verify.code])}${saved ? ` · ${t('submittedAs')} ${playerName || 'RUNNER'}` : ''}`
+      : t(({ checking: 'verifying', offline: 'offlineNotSubmitted', practice: 'practiceNotSubmitted', mismatch: 'replayMismatch' } as const)[verify.state]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/70 animate-in fade-in duration-200">
@@ -93,7 +110,7 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData,
           <div className="rounded-lg bg-black/30 px-5 py-3 text-center">
             <span className="font-display text-xs text-[#f2c230]">{t('score')}</span>
             <p className="font-display text-3xl md:text-4xl">{runData.score.toLocaleString('en-US')}</p>
-            {verify?.rank !== undefined && verify.state === 'verified' && (
+            {saved && verify.rank !== undefined && (
               <p className="text-xs text-[#aaa6b8] mt-1">
                 {t('rank')} #{verify.rank}
               </p>
@@ -130,12 +147,12 @@ export const GameOverDialog: React.FC<GameOverDialogProps> = ({ isOpen, runData,
           <div className="flex items-center gap-2 text-xs text-[#f1ebdd]/85">
             {verify.state === 'checking' ? (
               <Loader2 className="w-4 h-4 animate-spin text-[#f2c230]" />
-            ) : verify.state === 'verified' ? (
+            ) : saved ? (
               <CheckCircle2 className="w-4 h-4 text-[#6cc070]" />
             ) : (
               <AlertTriangle className="w-4 h-4 text-[#f0862a]" />
             )}
-            <span>{verifyText[verify.state]}</span>
+            <span>{verifyText}</span>
           </div>
         )}
 

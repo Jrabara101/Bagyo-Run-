@@ -1,7 +1,7 @@
 import React from 'react';
 import { GameSettings } from '../../shared/sim/types';
 import { Lang, UI, UiKey } from '../../shared/content/i18n';
-import { X, Volume2, Camera, RotateCcw, Play, Keyboard, Languages, Home } from 'lucide-react';
+import { X, Volume2, Camera, RotateCcw, Play, Keyboard, Languages, Home, UserRound } from 'lucide-react';
 
 interface PauseSheetProps {
   isOpen: boolean;
@@ -75,6 +75,23 @@ export const PauseSheet: React.FC<PauseSheetProps> = ({ isOpen, paused, lang, on
             </div>
           </div>
         )}
+
+        <section className="flex flex-col gap-2">
+          <label htmlFor="runner-name" className="font-display text-sm text-[#f2c230] flex items-center gap-2">
+            <UserRound className="w-4 h-4" /> {t('runnerName')}
+          </label>
+          <input
+            id="runner-name"
+            value={settings.playerName}
+            maxLength={16}
+            placeholder="RUNNER"
+            autoComplete="nickname"
+            onChange={(e) => onUpdateSettings({ playerName: e.target.value })}
+            onKeyDown={(e) => e.stopPropagation()}
+            className="px-3 py-2 rounded-md bg-black/30 border-2 border-white/20 focus:border-[#f2c230] outline-none font-semibold select-text"
+          />
+          <span className="text-[11px] text-[#aaa6b8]">{t('runnerNameHint')}</span>
+        </section>
 
         <section className="flex flex-col gap-2">
           <h3 className="font-display text-sm text-[#f2c230] flex items-center gap-2">

@@ -50,7 +50,7 @@ export class Mulberry32 {
   /**
    * Picks a random item from an array
    */
-  public pick<T>(arr: T[]): T {
+  public pick<T>(arr: readonly T[]): T {
     return arr[Math.floor(this.next() * arr.length)];
   }
 

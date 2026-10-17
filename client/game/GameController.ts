@@ -8,10 +8,10 @@ import {
   RunStatus,
   RunSubmissionPayload,
   SimEvent,
-  TelemetryPoint,
+  GhostPoint,
 } from '../../shared/sim/types';
 import { GameSimulation, TICK_MS } from '../../shared/sim/simulation';
-import { BAYANIHAN_MIN_GAUGE, FIXED_TIMESTEP_SEC, STARTING_HEARTS } from '../../shared/sim/constants';
+import { BAYANIHAN_MIN_GAUGE, FIXED_TIMESTEP_SEC, RULES_VERSION, STARTING_HEARTS } from '../../shared/sim/constants';
 import { SIGNALS, signalAt } from '../../shared/content/signals';
 import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
 import { HAZARDS, HazardId } from '../../shared/content/hazards';
@@ -21,11 +21,9 @@ import { Renderer } from '../render/Renderer';
 import { audio } from '../audio/AudioEngine';
 
 const HUD_SYNC_SEC = 0.065; // ~15 Hz
-const TELEMETRY_HEARTBEAT_MS = 100;
 /** One footstep per half stride of the kid's run cycle (see the renderer's run phase). */
 const STEP_M = Math.PI / 0.75;
 export const PRACTICE_SEED = 'PRACTICE';
-const DEFAULT_SEED = 'SEED-DAILY-GAUNTLET';
 
 /** The last gate answer, shown briefly after the player crosses a gate. */
 export interface GateFeedback {
@@ -66,10 +64,9 @@ export class GameController {
   private status: RunStatus = 'IDLE';
   private inputLog: InputEvent[] = [];
 
-  /** Sampled positions for ghost playback of this run. */
-  private telemetry: TelemetryPoint[] = [];
-
-  private ghostTelemetry: TelemetryPoint[] | null = null;
+  /** A verified run to race against, replayed by the server into positions over time. */
+  private ghost: GhostPoint[] | null = null;
+  private ghostIndex = 0;
   private ghostZ = 0;
   private ghostLane: LaneIndex = 1;
 
@@ -83,12 +80,16 @@ export class GameController {
   private practice = false;
   private lastStep = 0;
 
+  /** The seed to come back to after a practice run (today's daily challenge, or the URL's). */
+  private readonly homeSeed: string;
+
   constructor(
     canvas: HTMLCanvasElement,
     seed: string,
     private readonly callbacks: ControllerCallbacks
   ) {
     this.renderer = new Renderer(canvas);
+    this.homeSeed = seed;
     this.sim = new GameSimulation(seed);
   }
 
@@ -107,18 +108,22 @@ export class GameController {
     this.animFrameId = null;
   }
 
-  public loadGhostTelemetry(telemetry: TelemetryPoint[]) {
-    this.ghostTelemetry = telemetry;
+  /** Starts a run on the ghost's seed with the ghost running alongside. */
+  public raceGhost(seed: string, points: GhostPoint[]) {
+    this.reset(seed);
+    this.ghost = points.length > 0 ? points : null;
+    this.startRun();
   }
 
-  /** Back to the start line. Practice runs always use the practice seed. */
+  /** Back to the start line, without a ghost. Practice runs always use the practice seed. */
   public reset(seed = this.sim.seed, practice = false) {
     this.practice = practice;
     this.lastStep = 0;
-    this.sim = new GameSimulation(practice ? PRACTICE_SEED : seed === PRACTICE_SEED ? DEFAULT_SEED : seed);
+    this.sim = new GameSimulation(practice ? PRACTICE_SEED : seed === PRACTICE_SEED ? this.homeSeed : seed);
     audio.setMusicLevel('menu');
     this.inputLog = [];
-    this.telemetry = [];
+    this.ghost = null;
+    this.ghostIndex = 0;
     this.ghostZ = 0;
     this.ghostLane = 1;
     this.accumulator = 0;
@@ -127,7 +132,11 @@ export class GameController {
   }
 
   public startRun() {
-    if (this.status === 'ENDED') this.reset(this.sim.seed, this.practice);
+    if (this.status === 'ENDED') {
+      const ghost = this.ghost;
+      this.reset(this.sim.seed, this.practice);
+      this.ghost = ghost; // run again keeps racing the same ghost
+    }
     audio.unlock();
     const signal = signalAt(this.sim.playerZ);
     audio.setWeather(signal.rain, signal.wind, signal.level);
@@ -179,7 +188,6 @@ export class GameController {
         this.accumulator -= FIXED_TIMESTEP_SEC;
       }
       if (this.status === 'RUNNING') {
-        this.recordHeartbeat();
         this.hudTimer += frameDeltaSec;
         if (this.hudTimer >= HUD_SYNC_SEC) {
           this.hudTimer = 0;
@@ -197,7 +205,7 @@ export class GameController {
         chunks: sim.chunks,
         gate: this.renderGate(),
         bayanihan: sim.isBayanihanActive,
-        ghost: this.ghostTelemetry ? { z: this.ghostZ, lane: this.ghostLane } : null,
+        ghost: this.ghost ? { z: this.ghostZ, lane: this.ghostLane } : null,
         title: this.status === 'IDLE',
       },
       this.settings
@@ -211,20 +219,16 @@ export class GameController {
       switch (event.type) {
         case 'LANE_CHANGED':
           audio.laneShift();
-          this.recordAction('lane_shift');
           break;
         case 'JUMP_REQUESTED':
           audio.jump();
-          this.recordAction('jump');
           break;
         case 'SLIDE_STARTED':
           audio.slide();
-          this.recordAction('slide');
           break;
         case 'BAYANIHAN_STARTED':
           audio.bayanihan();
           this.renderer.triggerScreenShake(0.8);
-          this.recordAction('bayanihan');
           break;
         case 'NEAR_MISS': {
           audio.nearMiss();
@@ -344,49 +348,23 @@ export class GameController {
     return { z: gate.z, highlightLane: this.sim.gateShown ? this.sim.player.lane : null };
   }
 
+  /** The player's name is added by the UI, which owns the setting. */
   private submission(): RunSubmissionPayload {
-    return {
-      seed: this.sim.seed,
-      playerName: 'RUNNER',
-      inputLog: this.inputLog,
-      ticks: this.sim.tick,
-      inputTelemetry: this.telemetry,
-    };
+    return { seed: this.sim.seed, playerName: '', inputLog: this.inputLog, ticks: this.sim.tick, rulesVersion: RULES_VERSION };
   }
 
   private playerScreenPos() {
     return this.renderer.playerScreenPos(this.sim.player);
   }
 
-  private recordAction(action: TelemetryPoint['action']) {
-    this.telemetry.push({
-      timeMs: this.sim.elapsedMs,
-      action,
-      lane: this.sim.player.lane,
-      y: this.sim.player.yPos,
-      z: this.sim.playerZ,
-    });
-  }
-
-  private recordHeartbeat() {
-    const last = this.telemetry[this.telemetry.length - 1];
-    if (last && this.sim.elapsedMs - last.timeMs <= TELEMETRY_HEARTBEAT_MS) return;
-    this.telemetry.push({
-      timeMs: Math.floor(this.sim.elapsedMs),
-      action: 'tick',
-      lane: this.sim.player.lane,
-      y: Number(this.sim.player.yPos.toFixed(1)),
-      z: Number(this.sim.playerZ.toFixed(1)),
-    });
-  }
-
+  /** Moves the ghost to where it was at this moment of its run (points are in time order). */
   private updateGhost() {
-    const points = this.ghostTelemetry;
-    if (!points || points.length === 0) return;
+    const points = this.ghost;
+    if (!points) return;
     const target = this.sim.elapsedMs;
-    const closest = points.find((p) => p.timeMs >= target) ?? points[points.length - 1];
-    this.ghostZ = closest.z;
-    this.ghostLane = closest.lane;
+    while (this.ghostIndex < points.length - 1 && points[this.ghostIndex].timeMs < target) this.ghostIndex++;
+    this.ghostZ = points[this.ghostIndex].z;
+    this.ghostLane = points[this.ghostIndex].lane;
   }
 
   private emitHud() {
@@ -395,7 +373,7 @@ export class GameController {
     if (this.gateFeedback && sim.elapsedMs > this.gateFeedbackUntilMs) this.gateFeedback = null;
     const gate = sim.activeGate;
     this.callbacks.onHud({
-      ghostDeltaMeters: this.ghostTelemetry ? Math.floor(distance - this.ghostZ) : 0,
+      ghostDeltaMeters: this.ghost ? Math.floor(distance - Math.min(this.ghostZ, COURSE_LENGTH_M)) : 0,
       gateFeedback: this.gateFeedback,
       practice: this.practice,
       coach: this.coach(),

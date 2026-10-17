@@ -210,10 +210,10 @@ Submitting a run sends `{ seed, playerName, inputLog }`. The server computes the
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/daily` | Today's seed and storm name |
-| POST | `/api/runs` | `{seed, playerName, inputLog}` → replay → store → `{result, rank}` |
-| GET | `/api/leaderboard?seed=` | Top runs for a seed (daily or tournament) |
-| GET | `/api/runs/:id/replay` | Input log for ghost or spectator playback |
+| GET | `/api/daily` | Today's seed and storm name (also computed offline by the client) |
+| POST | `/api/runs` | `{seed, playerName, inputLog, ticks, rulesVersion}` → replay → store → `{code, result, rank}` |
+| GET | `/api/leaderboard?seed=` | Top runs for a seed (each player's best once, current rules only) |
+| GET | `/api/runs/:id/ghost` | The stored run replayed on the server into a ghost path |
 | POST | `/api/tournament` | (phase 2) Create an event code = a fixed seed for the finals |
 | WS | `/ws/live` | (phase 2) Live standings for a big-screen spectator view |
 

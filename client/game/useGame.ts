@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GameSettings, RunResult, RunSubmissionPayload, TelemetryPoint } from '../../shared/sim/types';
+import { GameSettings, GhostPoint, RunResult, RunSubmissionPayload } from '../../shared/sim/types';
 import { audio } from '../audio/AudioEngine';
 import { GameController, HudSnapshot, INITIAL_HUD } from './GameController';
 
@@ -54,10 +54,7 @@ export function useGame(
   const handleJump = useCallback(() => controllerRef.current?.input('JUMP'), []);
   const handleSlide = useCallback(() => controllerRef.current?.input('SLIDE'), []);
   const triggerOverdrive = useCallback(() => controllerRef.current?.input('BAYANIHAN'), []);
-  const loadGhostTelemetry = useCallback(
-    (telemetry: TelemetryPoint[]) => controllerRef.current?.loadGhostTelemetry(telemetry),
-    []
-  );
+  const raceGhost = useCallback((seed: string, points: GhostPoint[]) => controllerRef.current?.raceGhost(seed, points), []);
 
   return {
     gameState: hud.state,
@@ -74,6 +71,6 @@ export function useGame(
     handleJump,
     handleSlide,
     triggerOverdrive,
-    loadGhostTelemetry,
+    raceGhost,
   };
 }

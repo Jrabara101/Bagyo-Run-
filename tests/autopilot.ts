@@ -1,7 +1,7 @@
 import { GameSimulation } from '../shared/sim/simulation';
-import { JUMP_AIR_SEC } from '../shared/sim/constants';
+import { JUMP_AIR_SEC, RULES_VERSION } from '../shared/sim/constants';
 import { GATE_CLEAR_BEFORE_M } from '../shared/sim/quiz';
-import type { Action, InputEvent, SimEvent } from '../shared/sim/types';
+import type { Action, InputEvent, RunSubmissionPayload, SimEvent } from '../shared/sim/types';
 
 export type QuizStrategy = 'correct' | 'wrong' | 'ignore';
 
@@ -50,4 +50,10 @@ export function playAutopilot(seed: string, { maxTicks = 20000, quiz = 'correct'
     events.push(...sim.step(actions));
   }
   return { sim, inputLog, events };
+}
+
+/** A finished autopilot run as the client would submit it, with the score it got. */
+export function submission(seed: string): { payload: RunSubmissionPayload; score: number } {
+  const { sim, inputLog } = playAutopilot(seed);
+  return { payload: { seed, playerName: 'TEST', inputLog, ticks: sim.tick, rulesVersion: RULES_VERSION }, score: sim.score };
 }

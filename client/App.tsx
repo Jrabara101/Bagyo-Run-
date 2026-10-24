@@ -191,6 +191,7 @@ export function App() {
     gameState,
     ghostDeltaMeters,
     gateFeedback,
+    gustResult,
     practice,
     coach,
     startGame,
@@ -372,6 +373,7 @@ export function App() {
             <HUDOverlay
               gameState={gameState}
               ghostDeltaMeters={ghostDeltaMeters}
+              gustResult={gustResult}
               lang={lang}
               practice={practice}
               isAudioMuted={isAudioMuted}

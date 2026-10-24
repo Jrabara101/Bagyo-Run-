@@ -3,7 +3,7 @@
  * replay computes the same number as the client.
  *
  *   distance points + supplies x combo + correct gates x 500 x signal + near-miss combo
- *   + Go-Bag complete bonus + finish bonus + 1,000 per heart remaining
+ *   + Go-Bag complete bonus + 300 per gust braced + finish bonus + 1,000 per heart remaining
  */
 export const SCORE = {
   perMeter: 8,
@@ -12,6 +12,8 @@ export const SCORE = {
   goBagItem: 250,
   goBagComplete: 3000,
   gateCorrect: 500,
+  /** Crouching through a wind gust instead of being shoved a lane */
+  gustBraced: 300,
   finish: 5000,
   perHeart: 1000,
 } as const;

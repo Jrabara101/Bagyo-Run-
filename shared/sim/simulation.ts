@@ -20,7 +20,10 @@ import {
   CHUNKS_AHEAD,
 } from './constants';
 import { distancePoints, finishBonus, gatePoints, nearMissPoints, nextCombo, SCORE, supplyPoints } from './scoring';
+
+const GUST_BRACED_GAUGE = 10;
 import { gatePlan, QuizGate } from './quiz';
+import { FLOOD_DRAG_RATE, FLOOD_SLOW, FloodZone, GUST_WARN_M, Gust, WeatherPlan, floodAt, weatherPlan } from './weather';
 import { areaAt, COURSE_LENGTH_M } from '../content/areas';
 import { signalAt } from '../content/signals';
 import { GO_BAG_ITEMS } from '../content/items';
@@ -43,6 +46,10 @@ export interface ActivePowerUp {
  *
  * A run is a fixed course to the evacuation center. It ends at the finish line (FINISHED) or
  * when the last heart is lost (RESCUED: score kept, no finish bonus).
+ *
+ * Weather (shared/sim/weather.ts): a wind gust shoves the runner one lane downwind unless they
+ * are crouching (sliding) as it hits; in a flooded stretch the two deep-water lanes slow the run
+ * and allow no jumping, while the high-ground lane is clear.
  */
 export class GameSimulation {
   public readonly seed: string;
@@ -79,11 +86,22 @@ export class GameSimulation {
   public gatesCorrect = 0;
   public wrongQuestionIds: string[] = [];
 
+  public readonly weather: WeatherPlan;
+  /** The next gust to hit; `weather.gusts.length` once all have passed. */
+  public nextGust = 0;
+  public gustWarned = false;
+  public gustsBraced = 0;
+  /** The flood the player is in, if any. */
+  public flood: FloodZone | null = null;
+  /** 0..1: how much the floodwater is holding the player back. */
+  public waterDrag = 0;
+
   private currentChunkIndex = 0;
 
   constructor(seed: string) {
     this.seed = seed;
     this.gates = gatePlan(seed);
+    this.weather = weatherPlan(seed);
     for (let i = 0; i < CHUNKS_AHEAD; i++) {
       this.chunks.push(generateChunk(i, seed));
     }
@@ -98,7 +116,17 @@ export class GameSimulation {
   }
 
   get effectiveSpeed() {
-    return this.currentSpeed + (this.isBayanihanActive ? BAYANIHAN_SPEED_BOOST : 0);
+    return (this.currentSpeed + (this.isBayanihanActive ? BAYANIHAN_SPEED_BOOST : 0)) * (1 - FLOOD_SLOW * this.waterDrag);
+  }
+
+  /** In a flood and not on its high ground. */
+  get inDeepWater() {
+    return this.flood !== null && this.kinematics.player.lane !== this.flood.safeLane;
+  }
+
+  /** The gust whose warning is up, if any. */
+  get activeGust(): Gust | null {
+    return this.gustWarned ? this.weather.gusts[this.nextGust] ?? null : null;
   }
 
   /** Applies `actions` (in order) and advances one tick. Does nothing once the run has ended. */
@@ -135,6 +163,7 @@ export class GameSimulation {
       supplies: this.supplies,
       nearMisses: this.nearMisses,
       maxCombo: Number(this.maxCombo.toFixed(2)),
+      gustsBraced: this.gustsBraced,
       ticks: this.tick,
       wrongQuestionIds: [...this.wrongQuestionIds],
       rescuedBy: this.rescuedBy,
@@ -151,6 +180,10 @@ export class GameSimulation {
         }
         break;
       case 'JUMP':
+        if (this.inDeepWater && kin.player.isGrounded) {
+          events.push({ type: 'JUMP_BLOCKED' });
+          break;
+        }
         kin.requestJump();
         events.push({ type: 'JUMP_REQUESTED' });
         break;
@@ -191,6 +224,7 @@ export class GameSimulation {
     this.kinematics.update(dt);
 
     this.updateZone(events);
+    this.updateWeather(dt, events);
     this.recycleChunks();
     this.resolveContacts(events);
     this.resolveGate(events);
@@ -219,6 +253,45 @@ export class GameSimulation {
       this.areaId = area;
       events.push({ type: 'AREA_ENTERED', areaId: area });
     }
+  }
+
+  /**
+   * Floods: entering and leaving, and the water's drag in the deep lanes. Gusts: the warning,
+   * then the shove (or the brace, if the player is crouching as it hits).
+   */
+  private updateWeather(dt: number, events: SimEvent[]) {
+    const flood = floodAt(this.weather, this.playerZ);
+    if (flood !== this.flood) {
+      if (flood) events.push({ type: 'FLOOD_ENTERED', safeLane: flood.safeLane });
+      else events.push({ type: 'FLOOD_LEFT' });
+      this.flood = flood;
+    }
+    const drag = this.inDeepWater && this.kinematics.player.isGrounded ? 1 : 0;
+    const step = FLOOD_DRAG_RATE * dt;
+    this.waterDrag = drag > this.waterDrag ? Math.min(drag, this.waterDrag + step) : Math.max(drag, this.waterDrag - step);
+
+    const gust = this.weather.gusts[this.nextGust];
+    if (!gust) return;
+    if (!this.gustWarned && this.playerZ >= gust.z - GUST_WARN_M) {
+      this.gustWarned = true;
+      events.push({ type: 'GUST_WARNING', dir: gust.dir });
+    }
+    if (this.playerZ < gust.z) return;
+    const braced = this.kinematics.player.isSliding;
+    let pushed = false;
+    let points = 0;
+    if (braced) {
+      this.gustsBraced += 1;
+      points = SCORE.gustBraced;
+      this.score += points;
+      this.bayanihanGauge = Math.min(100, this.bayanihanGauge + GUST_BRACED_GAUGE);
+    } else {
+      pushed = this.kinematics.shiftLane(gust.dir);
+      if (pushed) this.combo = 1.0;
+    }
+    events.push({ type: 'GUST', dir: gust.dir, braced, pushed, points });
+    this.nextGust += 1;
+    this.gustWarned = false;
   }
 
   /** The active gate, if its question is showing. */
@@ -270,7 +343,7 @@ export class GameSimulation {
     if (chunkIndex <= this.currentChunkIndex) return;
     this.currentChunkIndex = chunkIndex;
     this.chunks = this.chunks.filter((c) => c.zStart + c.length > z - CHUNK_LENGTH);
-    const maxExisting = Math.max(...this.chunks.map((c) => Math.floor(c.zStart / CHUNK_LENGTH)));
+    const maxExisting = this.chunks.length ? Math.max(...this.chunks.map((c) => Math.floor(c.zStart / CHUNK_LENGTH))) : chunkIndex - 1;
     for (let i = maxExisting + 1; i <= chunkIndex + CHUNKS_AHEAD; i++) {
       this.chunks.push(generateChunk(i, this.seed));
     }

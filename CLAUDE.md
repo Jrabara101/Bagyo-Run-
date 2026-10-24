@@ -89,5 +89,11 @@ npm run build      # production build
   alters replays**; the board only lists the current version. Offline: runs are kept on the
   device (`client/game/localRuns.ts`) and the leaderboard falls back to them. Runner name is a
   setting. `server/websocket.ts` is parked (not registered) until the finals phase.
+- Weather + graphics — 2026-10-24, branch `weather-and-graphics`. Rules in `shared/sim/weather.ts`
+  (content in `shared/content/weather.ts`): wind gusts with a direction per area (crouch/slide as it
+  hits to hold the lane, +300; otherwise shoved a lane), flooded stretches (two deep lanes slow the
+  run 30% and block jumping; the high-ground lane is hazard-free with supplies), and the
+  `lightning_strike` hazard (change lanes). `RULES_VERSION` is 2. Renderer effects in
+  `client/render/art/weather.ts`; they scale down on slow machines (`Renderer.quality`). Dev builds
+  expose `window.__takbo` (the GameController) for checking the art from the console.
 - Next: Phase 7 — bug fixing from playtests, recording the trailer and gameplay videos.
-- The fake pre-seeded leaderboard runs in `server/db.ts` are still there; they are removed in Phase 6.

@@ -146,6 +146,59 @@ export class AudioEngine {
   }
 
   /** Thud and splash: a hazard took a heart. */
+  /** Thunder: a crack, then a long rumble. `nearness` 0..1 makes it louder and sharper. */
+  public thunder(nearness = 0.5) {
+    const t = this.now();
+    const ctx = this.ctx;
+    if (t === null || !ctx || !this.sfx || !this.noise) return;
+    const delay = (1 - nearness) * 0.6;
+    if (nearness > 0.4) this.noiseBurst(t, 0.18, 'highpass', 3000, 900, 0.5 * nearness);
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(500 + nearness * 700, t + delay);
+    filter.frequency.exponentialRampToValueAtTime(60, t + delay + 2.6);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35 + nearness * 0.5, t + delay + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + delay + 2.8);
+    src.connect(filter).connect(g).connect(this.sfx);
+    src.start(t, Math.random() * 1.5);
+    src.stop(t + delay + 2.9);
+  }
+
+  /** A gust rushing in: a rising whoosh. */
+  public gustWarning() {
+    const t = this.now();
+    if (t === null) return;
+    this.noiseBurst(t, 1.3, 'bandpass', 300, 1800, 0.35);
+  }
+
+  /** The gust hits: braced (a grunt of wind going past) or shoved (a hard gust and a skid). */
+  public gust(braced: boolean) {
+    const t = this.now();
+    if (t === null) return;
+    this.noiseBurst(t, 0.6, 'bandpass', 1600, 400, braced ? 0.3 : 0.5);
+    if (braced) this.tone(t + 0.05, 'triangle', 523, 784, 0.18, 0.18);
+    else this.tone(t, 'sawtooth', 220, 110, 0.2, 0.12);
+  }
+
+  /** Wading into floodwater. */
+  public floodEnter() {
+    const t = this.now();
+    if (t === null) return;
+    this.noiseBurst(t, 0.5, 'lowpass', 900, 200, 0.45);
+  }
+
+  /** Tried to jump in deep water: a heavy splash, no lift. */
+  public splash() {
+    const t = this.now();
+    if (t === null) return;
+    this.noiseBurst(t, 0.3, 'lowpass', 1400, 300, 0.4);
+  }
+
   public hit() {
     const t = this.now();
     if (t === null) return;

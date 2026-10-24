@@ -9,6 +9,7 @@ import { SIGNAL_COLORS } from '../HUDOverlay';
 
 const AVOID_TEXT: Record<AvoidBy, UiKey> = { jump: 'avoidJump', slide: 'avoidSlide', lane: 'avoidLane' };
 const WATER_HAZARDS = new Set(['flood_hole', 'floating_debris']);
+const STORM_HAZARDS = new Set(['lightning_strike']);
 
 interface HowToPlayProps {
   lang: Lang;
@@ -66,7 +67,7 @@ export const HowToPlay: React.FC<HowToPlayProps> = ({ lang, onBack, onPractice }
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Object.values(HAZARDS).map((h) => (
               <figure key={h.id} className="flex flex-col items-center gap-1 text-center">
-                <ArtThumb subject={{ hazard: h.id }} ground={WATER_HAZARDS.has(h.id) ? '#4c5843' : '#55585c'} label={h.name[lang]} />
+                <ArtThumb subject={{ hazard: h.id }} ground={WATER_HAZARDS.has(h.id) ? '#4c5843' : STORM_HAZARDS.has(h.id) ? '#2e3240' : '#55585c'} label={h.name[lang]} />
                 <figcaption className="text-xs leading-snug">
                   <span className="block font-semibold">{h.name[lang]}</span>
                   <span className="text-[#f2c230] font-display text-[10px]">{t(AVOID_TEXT[h.avoid])}</span>
@@ -98,6 +99,23 @@ export const HowToPlay: React.FC<HowToPlayProps> = ({ lang, onBack, onPractice }
                 </figcaption>
               </figure>
             ))}
+          </div>
+        </Section>
+
+        <Section title={t('htpWeatherTitle')}>
+          <div className="grid sm:grid-cols-3 gap-3 text-[#f1ebdd]/90">
+            <p>
+              <span className="font-display text-[#f2c230] block">➜ ➜ ➜</span>
+              {t('htpGust')}
+            </p>
+            <p>
+              <span className="font-display text-[#c9a96b] block">≈ ≈ ≈</span>
+              {t('htpFlood')}
+            </p>
+            <p>
+              <span className="font-display text-[#a9c4ff] block">ϟ</span>
+              {t('htpLightning')}
+            </p>
           </div>
         </Section>
 

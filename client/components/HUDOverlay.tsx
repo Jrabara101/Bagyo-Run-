@@ -4,10 +4,13 @@ import { AREAS, AreaId } from '../../shared/content/areas';
 import { GO_BAG_ITEMS } from '../../shared/content/items';
 import { BAYANIHAN_MIN_GAUGE, STARTING_HEARTS } from '../../shared/sim/constants';
 import { Lang, UI, UiKey } from '../../shared/content/i18n';
+import { SIGNAL_WIND_KMH } from '../../shared/content/weather';
 import { Pause, Volume2, VolumeX, Shield, Megaphone } from 'lucide-react';
 
 /** PAGASA signal colors, 1 to 5. */
 export const SIGNAL_COLORS = ['#5aa9e6', '#6cc070', '#f2c230', '#f0862a', '#e0413a'];
+
+const LANE_NAME: UiKey[] = ['laneLeft', 'laneCenter', 'laneRight'];
 
 const AREA_SHORT: Record<AreaId, UiKey> = {
   barangay: 'areaShortBarangay',
@@ -18,6 +21,8 @@ const AREA_SHORT: Record<AreaId, UiKey> = {
 
 interface HUDOverlayProps {
   gameState: HudState;
+  /** The last gust's outcome, shown for a moment after it hits. */
+  gustResult: 'braced' | 'pushed' | null;
   ghostDeltaMeters: number;
   lang: Lang;
   practice: boolean;
@@ -30,6 +35,7 @@ interface HUDOverlayProps {
 /** In-run HUD: hearts and signal, course progress, score, Go-Bag, Bayanihan meter. */
 export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   gameState,
+  gustResult,
   ghostDeltaMeters,
   lang,
   practice,
@@ -69,7 +75,40 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             ))}
           </div>
         </div>
+        {/* Wind gauge: which way it blows and how hard (PAGASA range for the signal) */}
+        <div className="flex items-center gap-1.5 font-body font-bold text-[10px] md:text-[11px] text-white/90 normal-case">
+          <span
+            className={`inline-block text-base leading-none text-[#cfe3ff] ${gameState.gust ? 'animate-pulse text-[#f2c230]' : ''}`}
+            style={{ transform: gameState.windDir < 0 ? 'scaleX(-1)' : undefined }}
+            aria-hidden="true"
+          >
+            ➜
+          </span>
+          {t('hudWind')} {SIGNAL_WIND_KMH[gameState.signal]} km/h
+        </div>
       </div>
+
+      {/* Center: gust warning and outcome */}
+      {gameState.gust && (
+        <div className="absolute top-[24%] left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 animate-in fade-in zoom-in-95 duration-150">
+          <span className="hp px-4 py-2 text-xl md:text-3xl text-[#f2c230] flex items-center gap-3">
+            <span style={{ transform: gameState.gust.dir < 0 ? 'scaleX(-1)' : undefined }} className="inline-block">
+              ➜➜
+            </span>
+            {t('hudGust')}
+          </span>
+          <span className="font-body font-bold text-xs md:text-sm drop-shadow-[0_1px_2px_#000] normal-case">
+            {t('hudGustHint')} · {gameState.gust.metersLeft} m
+          </span>
+        </div>
+      )}
+      {!gameState.gust && gustResult && (
+        <div className="absolute top-[26%] left-1/2 -translate-x-1/2 animate-in fade-in zoom-in-95 duration-150">
+          <span className={`hp px-4 py-2 text-lg md:text-2xl ${gustResult === 'braced' ? 'text-[#9fe0a8]' : 'text-[#ff8a6e]'}`}>
+            {gustResult === 'braced' ? `${t('hudBraced')} +300` : t('hudPushed')}
+          </span>
+        </div>
+      )}
 
       {/* Top center: course progress */}
       <div className="absolute top-5 md:top-6 left-1/2 -translate-x-1/2 w-[36%] min-w-[200px]">
@@ -97,8 +136,17 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             style={{ left: `${progress * 100}%` }}
           />
         </div>
-        <div className="flex justify-center gap-2 mt-7">
+        <div className="flex flex-wrap justify-center gap-2 mt-7">
           {practice && <span className="px-2 py-0.5 rounded bg-[#2b5fb8] text-[10px]">{t('practiceBadge')}</span>}
+          {gameState.flood && (
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] ${gameState.flood.inDeepWater ? 'bg-[#8a5a2b] animate-pulse' : 'bg-[#5b4a33]'}`}
+            >
+              ≈ {gameState.flood.ahead ? t('hudFloodAhead') : t('hudFlooded')} {gameState.flood.metersLeft} m · {t('hudHighGround')}:{' '}
+              {t(LANE_NAME[gameState.flood.safeLane])}
+              {gameState.flood.inDeepWater && <span className="block font-body font-bold normal-case">{t('hudDeepWater')}</span>}
+            </span>
+          )}
           {gameState.ghostDistanceMeters > 0 && (
             <span className={`px-2 py-0.5 rounded text-[10px] ${ghostDeltaMeters >= 0 ? 'bg-[#3d8b4f]' : 'bg-[#f0862a] text-[#15141f]'}`}>
               {Math.abs(ghostDeltaMeters)} m {ghostDeltaMeters >= 0 ? t('aheadOfGhost') : t('behindGhost')}

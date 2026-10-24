@@ -2,8 +2,9 @@ import type { AreaId } from '../content/areas';
 import type { HazardId } from '../content/hazards';
 import type { GoBagItemId, PowerUpType } from '../content/items';
 import type { SignalLevel } from '../content/signals';
+import type { WindDir } from '../content/weather';
 
-export type { AreaId, HazardId, GoBagItemId, PowerUpType, SignalLevel };
+export type { AreaId, HazardId, GoBagItemId, PowerUpType, SignalLevel, WindDir };
 
 export type LaneIndex = 0 | 1 | 2; // Left, Center, Right
 /** Collision class: how a hazard is checked. The hazard itself (content) is `hazardId`. */
@@ -65,6 +66,12 @@ export interface InputEvent {
 export type SimEvent =
   | { type: 'LANE_CHANGED'; lane: LaneIndex }
   | { type: 'JUMP_REQUESTED' }
+  /** Jump pressed in deep floodwater: no footing to jump from. */
+  | { type: 'JUMP_BLOCKED' }
+  | { type: 'GUST_WARNING'; dir: WindDir }
+  | { type: 'GUST'; dir: WindDir; braced: boolean; pushed: boolean; points: number }
+  | { type: 'FLOOD_ENTERED'; safeLane: LaneIndex }
+  | { type: 'FLOOD_LEFT' }
   | { type: 'SLIDE_STARTED' }
   | { type: 'BAYANIHAN_STARTED' }
   | { type: 'ITEM_COLLECTED'; itemId: string; goBag: boolean }
@@ -100,6 +107,7 @@ export interface RunResult {
   supplies: number;
   nearMisses: number;
   maxCombo: number;
+  gustsBraced: number;
   ticks: number;
   /** Questions answered wrong, in course order; the results screen teaches these. */
   wrongQuestionIds: string[];
@@ -131,6 +139,12 @@ export interface HudState {
   gatesTotal: number;
   /** The quiz gate being asked right now, if any. */
   gate: ActiveGateHud | null;
+  windDir: WindDir;
+  /** A gust about to hit, if its warning is up. */
+  gust: { dir: WindDir; metersLeft: number } | null;
+  /** The flood the player is in (or about to enter), if any. */
+  flood: { safeLane: LaneIndex; metersLeft: number; inDeepWater: boolean; ahead: boolean } | null;
+  gustsBraced: number;
 }
 
 export interface ActiveGateHud {

@@ -5,11 +5,16 @@ import {
   CAM_BACK_M, Ctx, DRAW_DISTANCE_M, HEIGHT_TO_LANE, TAU, View, depth, glow, hash, laneCenterU, laneU, laneW, makeView, pick, quad, xAt, yAt,
 } from './view';
 import { AREA_LOOK, FIESTA, Look, ROAD_LOOK, RoadLook, TITLE_LOOK, TITLE_ROAD, mixHex, mixLook } from './art/palette';
-import { Cloud, Drop, Leaf, clouds, ground, haze, leaves, lightningBolt, makeClouds, makeLeaves, makeRain, makeRidge, mountains, rain, sky, spiral, vignette } from './art/sky';
+import { Leaf, ground, haze, leaves, makeLeaves, makeRidge, mountains, sky, spiral, vignette } from './art/sky';
+import {
+  CloudLayer, Grain, LensDrops, bolt, floodZone, fogAbove, grade, gustArrow, gustWall, makeCloudBanks, makeRainDrops, makeWindStreaks, puddles,
+  rainCurtains, rainLayers, splashes, wetRoad, windStreaks,
+} from './art/weather';
+import type { FloodZone, WindDir } from '../../shared/sim/weather';
 import {
   HouseStyle, PoleTop, banderitas, carabao, coconut, flagpole, house, jeepneyRear, kubo, pole, rescueTruck, school, stiltHouse, volunteer, wires,
 } from './art/scenery';
-import { drawFinish, drawGate, drawHazard } from './art/hazards';
+import { STRIKE_AT_M, drawFinish, drawGate, drawHazard } from './art/hazards';
 import { drawCollectible } from './art/items';
 import { GHOST_COLORS, KID_HEIGHT_UNITS, KidPose, drawKid } from './art/kid';
 
@@ -17,6 +22,16 @@ import { GHOST_COLORS, KID_HEIGHT_UNITS, KidPose, drawKid } from './art/kid';
 export interface RenderGate {
   z: number;
   highlightLane: LaneIndex | null;
+}
+
+/** The weather the renderer shows; all of it comes from the sim's weather plan. */
+export interface RenderWeather {
+  windDir: WindDir;
+  /** A gust about to hit and how far off it is. */
+  gust: { dir: WindDir; metersLeft: number } | null;
+  floods: readonly FloodZone[];
+  /** The player is wading in deep floodwater. */
+  deepWater: boolean;
 }
 
 export interface RenderFrame {
@@ -28,6 +43,7 @@ export interface RenderFrame {
   ghost: { z: number; lane: LaneIndex } | null;
   /** Title screen: dusk over the barangay with the kid running in place, no hazards. */
   title: boolean;
+  weather: RenderWeather;
 }
 
 export interface RenderSettings {
@@ -56,6 +72,12 @@ const LOOK_BLEND_M = 120;
 const KID_LANES_TALL = 0.5;
 const TITLE_PACE = 7;
 const BANDERITAS_EVERY_M = 96;
+/** Fog laid over everything farther than each depth (meters), and how thick. */
+const FOG_STEPS: [number, number][] = [
+  [100, 0.4],
+  [55, 0.22],
+  [25, 0.1],
+];
 
 const HOUSE_WALLS = ['#e6b9a6', '#9fc2b5', '#e7d38f', '#b7a6d6', '#efece2', '#a9c4de'];
 const HOUSE_ROOFS = ['#7d8a93', '#a4593d', '#5d6a73', '#8b5a44'];
@@ -74,12 +96,25 @@ export class Renderer {
   private shakeTime = 0;
   private shakeIntensity = 0;
   private tilt = 0;
-  private flashTime = 0;
+  /** 0..1 brightness of the current lightning flash, and where it is across the sky. */
+  private flash = 0;
   private flashX = 0.8;
+  private boltTime = 0;
+  private boltSeed = 0;
   private view: View = makeView(1, 1);
-  private readonly cloudList: Cloud[] = makeClouds(14);
-  private readonly drops: Drop[] = makeRain(320);
+  private readonly cloudLayer = new CloudLayer();
+  private readonly banks = makeCloudBanks(16);
+  private readonly drops = makeRainDrops(520);
+  private readonly streaks = makeWindStreaks(40);
+  private readonly lens = new LensDrops();
+  private readonly grain = new Grain();
+  private readonly struck = new Set<string>();
+  /** Effects scale down (0.5..1) when frames run slow, so weaker laptops keep a steady pace. */
+  private quality = 1;
+  private frameAvg = 1 / 60;
   private readonly leafList: Leaf[] = makeLeaves(28);
+  /** Called when a lightning strike hits the road, for the thunderclap. */
+  public onStrike: ((nearness: number) => void) | null = null;
   private readonly ridgeNear = makeRidge(26);
   private readonly ridgeFar = makeRidge(20);
 
@@ -138,6 +173,11 @@ export class Renderer {
     const targetTilt = (player.currentX - player.targetX) * 0.06 * settings.cameraTilt;
     this.tilt += (targetTilt - this.tilt) * Math.min(1, dt * 10);
 
+    // Wind sway: the camera rocks as a gust closes in
+    const wx = f.weather;
+    const gustK = wx.gust ? Math.max(0, 1 - wx.gust.metersLeft / 45) : 0;
+    shakeX += wx.windDir * gustK * gustK * Math.sin(t * 23) * W * 0.004;
+
     ctx.save();
     ctx.translate(shakeX, shakeY);
     if (Math.abs(this.tilt) > 0.001) {
@@ -149,10 +189,16 @@ export class Renderer {
     ctx.fillStyle = look.ground[1];
     ctx.fillRect(-W * 0.1, -H * 0.1, W * 1.2, H * 1.2);
 
+    this.ambientLightning(dt, signal.level, f.title);
+    const q = this.quality;
+    const area = areaOf(camZ);
+
     // Sky
     sky(ctx, v, look);
-    spiral(ctx, v.W * 0.72, v.H * 0.13, v.W * 0.28, t * (0.1 + signal.wind * 0.15), look.spiralA);
-    clouds(ctx, v, t, this.cloudList, look, signal.wind);
+    spiral(ctx, v.W * 0.72, v.H * 0.13, v.W * 0.28, t * (0.1 + signal.wind * 0.15) * wx.windDir, look.spiralA);
+    this.cloudLayer.draw(ctx, v, t, this.banks, look, wx.windDir, signal.wind, this.flash, this.flashX, q);
+    if (this.boltTime > 0) bolt(ctx, v, this.flashX * v.W, this.flashX * v.W + Math.sin(this.boltSeed * 9) * v.W * 0.08, v.hy * 0.98, this.boltSeed, 0.8);
+    rainCurtains(ctx, v, t, signal.rain, wx.windDir, signal.wind, look);
     mountains(ctx, v, this.ridgeNear, this.ridgeFar, look.mountainsA, camZ);
     haze(ctx, v, look);
 
@@ -160,27 +206,77 @@ export class Renderer {
     ground(ctx, v, look);
     if (look.mountainsA > 0.01) this.paddyRows(v, look.mountainsA);
     this.road(v, camZ, f.title, areaOf);
+    if (!ROAD_LOOK[area].water || f.title) {
+      wetRoad(ctx, v, look, Math.max(0.35, signal.rain));
+      puddles(ctx, v, camZ, t, look, signal.rain);
+    }
+    for (const flood of wx.floods) floodZone(ctx, v, flood, camZ, t, wx.windDir, look);
+    if (wx.gust) gustArrow(ctx, v, wx.gust.metersLeft, wx.gust.dir, t);
 
-    // Everything standing on the road or beside it, far to near
+    // Everything standing on the road or beside it, far to near, with fog between the depths
     const queue: Drawable[] = [];
     const tops: PoleTop[] = [];
-    this.queueScenery(queue, tops, v, camZ, t, look, signal.wind, f.title, areaOf);
+    this.queueScenery(queue, tops, v, camZ, t, look, signal.wind * wx.windDir, f.title, areaOf);
     if (!f.title) this.queueEntities(queue, v, f, t, signal.wind);
     queue.sort((a, b) => b.z - a.z);
+    const fogColor = mixHex(look.haze, look.sky[2], 0.5);
+    const fogK = 0.45 + signal.rain * 0.55;
     let i = 0;
+    for (const [zLimit, alpha] of FOG_STEPS) {
+      for (; i < queue.length && queue[i].z > zLimit; i++) queue[i].draw();
+      fogAbove(ctx, v, yAt(v, depth(zLimit)), fogColor, alpha * fogK);
+    }
     for (; i < queue.length && queue[i].z > 0.3; i++) queue[i].draw();
     wires(ctx, tops);
-    this.drawPlayer(v, player, camZ, f, areaOf(camZ));
+    this.drawPlayer(v, player, camZ, f, area, signal.rain);
     for (; i < queue.length; i++) queue[i].draw();
 
     // Weather and effects
-    if (signal.wind > 0.45 || areaOf(camZ) === 'palayan') leaves(ctx, v, t, this.leafList, Math.max(signal.wind - 0.2, look.mountainsA * 0.8));
-    rain(ctx, v, t, this.drops, signal.rain, signal.wind, look.night);
+    splashes(ctx, v, t, signal.rain, ROAD_LOOK[area].water || wx.deepWater, q);
+    if (signal.wind > 0.45 || area === 'palayan' || gustK > 0) {
+      ctx.save();
+      if (wx.windDir < 0) {
+        ctx.translate(v.W, 0);
+        ctx.scale(-1, 1);
+      }
+      leaves(ctx, v, t, this.leafList, Math.min(1, Math.max(signal.wind - 0.2, look.mountainsA * 0.8) + gustK));
+      ctx.restore();
+    }
+    windStreaks(ctx, v, t, this.streaks, wx.windDir, signal.wind + gustK * 1.2, q);
+    gustWall(ctx, v, t, wx.windDir, gustK);
+    rainLayers(ctx, v, t, this.drops, signal.rain, wx.windDir, signal.wind, look.night, q);
     if (f.bayanihan) this.bayanihanStreaks(v);
     this.updateSparks(dt);
     vignette(ctx, v, look.vignette);
-    this.lightning(v, dt, signal.level);
+    grade(ctx, v, f.title ? 2 : signal.level, this.flash);
     ctx.restore();
+
+    this.lens.draw(ctx, this.canvas, v, dt, f.title ? 0.15 : signal.rain, q);
+    this.grain.draw(ctx, v, 0.06);
+    this.adaptQuality(dt);
+  }
+
+  /** Thunderstorm overhead: from Signal No. 3 the sky flashes every few seconds. */
+  private ambientLightning(dt: number, level: number, title: boolean) {
+    this.flash = Math.max(0, this.flash - dt * 4);
+    this.boltTime -= dt;
+    const rate = title ? 0.04 : level >= 5 ? 0.3 : level >= 4 ? 0.18 : level >= 3 ? 0.08 : 0;
+    if (this.flash <= 0.05 && Math.random() < dt * rate) this.strikeFlash(0.15 + Math.random() * 0.7, 0.7 + Math.random() * 0.3, true);
+  }
+
+  private strikeFlash(x: number, strength: number, withBolt: boolean) {
+    this.flash = Math.max(this.flash, strength);
+    this.flashX = x;
+    if (withBolt) {
+      this.boltTime = 0.12;
+      this.boltSeed = Math.random();
+    }
+  }
+
+  private adaptQuality(dt: number) {
+    this.frameAvg += (Math.min(0.1, dt) - this.frameAvg) * 0.05;
+    if (this.frameAvg > 1 / 40) this.quality = Math.max(0.5, this.quality - dt * 0.5);
+    else if (this.frameAvg < 1 / 55) this.quality = Math.min(1, this.quality + dt * 0.2);
   }
 
   private burst(x: number, y: number, count: number, color: () => string, speed: number, life: number) {
@@ -344,6 +440,11 @@ export class Renderer {
     for (const chunk of f.chunks) {
       for (const obs of chunk.obstacles) {
         const zRel = obs.zPos - f.playerZ;
+        if (obs.hazardId === 'lightning_strike' && zRel < STRIKE_AT_M && zRel > 0 && !this.struck.has(obs.id)) {
+          this.struck.add(obs.id);
+          this.strikeFlash(xAt(v, laneCenterU(obs.lane), depth(zRel)) / v.W, 1, false);
+          this.onStrike?.(1 - zRel / STRIKE_AT_M);
+        }
         if (inRange(zRel)) queue.push({ z: zRel, draw: () => drawHazard(ctx, v, obs.hazardId, obs.lane, zRel, t, wind) });
       }
       for (const col of chunk.collectibles) {
@@ -373,7 +474,7 @@ export class Renderer {
     }
   }
 
-  private drawPlayer(v: View, player: PlayerPhysicsState, camZ: number, f: RenderFrame, area: AreaId) {
+  private drawPlayer(v: View, player: PlayerPhysicsState, camZ: number, f: RenderFrame, area: AreaId, rainAmount: number) {
     const ctx = this.ctx;
     const p = depth(0);
     const lw = laneW(v, p);
@@ -382,12 +483,14 @@ export class Renderer {
     const lift = player.yPos * HEIGHT_TO_LANE * lw;
     const s = (lw * KID_LANES_TALL) / KID_HEIGHT_UNITS;
     const pose: KidPose = player.isSliding ? 'slide' : player.isGrounded ? 'run' : 'jump';
-    const inWater = area === 'estero' && !f.title;
+    const deep = f.weather.deepWater && !f.title;
+    const inWater = (area === 'estero' || deep) && !f.title;
 
-    ctx.fillStyle = 'rgba(0,0,0,.32)';
-    ctx.beginPath();
-    ctx.ellipse(x, groundY, 7 * s * Math.max(0.4, 1 - lift / lw), 1.6 * s, 0, 0, TAU);
-    ctx.fill();
+    ctx.save();
+    ctx.translate(x, groundY);
+    ctx.scale(1, 0.24);
+    glow(ctx, 0, 0, 9 * s * Math.max(0.4, 1 - lift / lw), 'rgba(0,0,0,.5)');
+    ctx.restore();
     if (f.bayanihan) glow(ctx, x, groundY - lift - lw * 0.25, lw * 0.6, 'rgba(255,214,110,.55)');
 
     ctx.save();
@@ -396,14 +499,34 @@ export class Renderer {
     ctx.restore();
 
     if (inWater && player.isGrounded) {
-      // Wading: floodwater over the boots, rippling around the legs
-      ctx.fillStyle = 'rgba(76,88,67,.88)';
-      ctx.fillRect(x - 8 * s, groundY - 4.5 * s, 16 * s, 4.5 * s);
-      ctx.strokeStyle = 'rgba(220,230,210,.45)';
+      // Wading: floodwater over the boots (up to the knees in deep water), rippling around the legs
+      const depthU = deep ? 9 : 4.5;
+      ctx.fillStyle = deep ? 'rgba(74,60,42,.94)' : 'rgba(76,88,67,.88)';
+      ctx.beginPath();
+      ctx.ellipse(x, groundY - depthU * s * 0.5, 9 * s, depthU * s * 0.62, 0, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(230,225,205,.5)';
       ctx.lineWidth = Math.max(1, s * 0.35);
       ctx.beginPath();
-      ctx.ellipse(x, groundY - 4.5 * s, 6.5 * s + Math.sin(camZ * 0.75) * s, 1.2 * s, 0, 0, TAU);
+      ctx.ellipse(x, groundY - depthU * s, 7 * s + Math.sin(camZ * 0.75) * s, 1.3 * s, 0, 0, TAU);
       ctx.stroke();
+      if (deep) {
+        // Wake spreading behind the legs
+        ctx.beginPath();
+        ctx.moveTo(x - 7 * s, groundY - depthU * s);
+        ctx.lineTo(x - 14 * s, groundY + 2 * s);
+        ctx.moveTo(x + 7 * s, groundY - depthU * s);
+        ctx.lineTo(x + 14 * s, groundY + 2 * s);
+        ctx.stroke();
+      }
+    } else if (!f.title && player.isGrounded && rainAmount > 0.3) {
+      // Spray kicked up off the wet road by the boots
+      ctx.fillStyle = 'rgba(215,225,235,.55)';
+      const kick = Math.abs(Math.sin(camZ * 0.75));
+      for (let k = 0; k < 6; k++) {
+        const dx = (k - 2.5) * 2.2 * s;
+        ctx.fillRect(x + dx, groundY - kick * (2 + (k % 3)) * s, Math.max(1, s * 0.5), Math.max(1, s * 0.5));
+      }
     }
   }
 
@@ -441,21 +564,6 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-  }
-
-  /** Lightning from Signal No. 4 up: a bolt and a white flash every few seconds. */
-  private lightning(v: View, dt: number, level: number) {
-    if (level < 4) return;
-    if (this.flashTime <= 0 && Math.random() < dt * (level === 5 ? 0.22 : 0.08)) {
-      this.flashTime = 0.18;
-      this.flashX = 0.15 + Math.random() * 0.7;
-    }
-    if (this.flashTime <= 0) return;
-    this.flashTime -= dt;
-    const ctx = this.ctx;
-    if (this.flashTime > 0.08) lightningBolt(ctx, v, this.flashX, this.flashX * 7.3);
-    ctx.fillStyle = `rgba(210,220,255,${Math.max(0, this.flashTime) * 1.2})`;
-    ctx.fillRect(-v.W * 0.1, -v.H * 0.1, v.W * 1.2, v.H * 1.2);
   }
 }
 

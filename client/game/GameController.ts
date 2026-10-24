@@ -17,7 +17,8 @@ import { AREAS, COURSE_LENGTH_M } from '../../shared/content/areas';
 import { HAZARDS, HazardId } from '../../shared/content/hazards';
 import type { UiKey } from '../../shared/content/i18n';
 import { GATES_PER_AREA } from '../../shared/sim/quiz';
-import { Renderer } from '../render/Renderer';
+import { Renderer, RenderWeather } from '../render/Renderer';
+import { WindDir, floodAt, windDirAt } from '../../shared/sim/weather';
 import { audio } from '../audio/AudioEngine';
 
 const HUD_SYNC_SEC = 0.065; // ~15 Hz
@@ -39,6 +40,8 @@ export interface HudSnapshot {
   state: HudState;
   ghostDeltaMeters: number;
   gateFeedback: GateFeedback | null;
+  /** How the last gust went, for a moment after it hit. */
+  gustResult: 'braced' | 'pushed' | null;
   /** Practice runs are coached and never submitted. */
   practice: boolean;
   /** Practice-run tip for what is coming up next. */
@@ -77,6 +80,8 @@ export class GameController {
   private hudTimer = 0;
   private gateFeedback: GateFeedback | null = null;
   private gateFeedbackUntilMs = 0;
+  private gustResult: 'braced' | 'pushed' | null = null;
+  private gustResultUntilMs = 0;
   private practice = false;
   private lastStep = 0;
 
@@ -89,8 +94,11 @@ export class GameController {
     private readonly callbacks: ControllerCallbacks
   ) {
     this.renderer = new Renderer(canvas);
+    this.renderer.onStrike = (nearness) => audio.thunder(0.5 + nearness * 0.5);
     this.homeSeed = seed;
     this.sim = new GameSimulation(seed);
+    // Dev builds only: lets the browser console jump around the course to check the art
+    if (import.meta.env.DEV) (window as unknown as { __takbo?: GameController }).__takbo = this;
   }
 
   get seed() {
@@ -128,6 +136,7 @@ export class GameController {
     this.ghostLane = 1;
     this.accumulator = 0;
     this.gateFeedback = null;
+    this.gustResult = null;
     this.setStatus('IDLE');
   }
 
@@ -207,6 +216,7 @@ export class GameController {
         bayanihan: sim.isBayanihanActive,
         ghost: this.ghost ? { z: this.ghostZ, lane: this.ghostLane } : null,
         title: this.status === 'IDLE',
+        weather: this.renderWeather(),
       },
       this.settings
     );
@@ -222,6 +232,32 @@ export class GameController {
           break;
         case 'JUMP_REQUESTED':
           audio.jump();
+          break;
+        case 'JUMP_BLOCKED':
+          audio.splash();
+          break;
+        case 'GUST_WARNING':
+          audio.gustWarning();
+          this.emitHud();
+          break;
+        case 'GUST':
+          audio.gust(event.braced);
+          this.gustResult = event.braced ? 'braced' : event.pushed ? 'pushed' : null;
+          this.gustResultUntilMs = this.sim.elapsedMs + 1400;
+          if (event.braced) {
+            const p = this.playerScreenPos();
+            this.renderer.addCoinBurst(p.x, p.y);
+          } else {
+            this.renderer.triggerScreenShake(0.7);
+          }
+          this.emitHud();
+          break;
+        case 'FLOOD_ENTERED':
+          audio.floodEnter();
+          this.emitHud();
+          break;
+        case 'FLOOD_LEFT':
+          this.emitHud();
           break;
         case 'SLIDE_STARTED':
           audio.slide();
@@ -316,6 +352,9 @@ export class GameController {
     if (!this.practice || this.status !== 'RUNNING') return null;
     if (sim.elapsedMs < 4000) return 'coachLanes';
     if (sim.gateShown) return 'coachGate';
+    if (sim.activeGust) return 'coachGust';
+    const flood = floodAt(sim.weather, sim.playerZ + 25);
+    if (flood && sim.player.lane !== flood.safeLane) return 'coachFlood';
     let nearest: { dz: number; hazard: HazardId } | null = null;
     let goBagAhead = false;
     let supplyAhead = false;
@@ -332,6 +371,7 @@ export class GameController {
       }
     }
     if (nearest) {
+      if (nearest.hazard === 'lightning_strike') return 'coachLightning';
       const avoid = HAZARDS[nearest.hazard].avoid;
       return avoid === 'jump' ? 'coachJump' : avoid === 'slide' ? 'coachSlide' : 'coachDodge';
     }
@@ -346,6 +386,33 @@ export class GameController {
     const gate = this.sim.gates[this.sim.nextGate];
     if (!gate) return null;
     return { z: gate.z, highlightLane: this.sim.gateShown ? this.sim.player.lane : null };
+  }
+
+  /** What the renderer needs of the weather: wind, the coming gust and the floods in view. */
+  private renderWeather(): RenderWeather {
+    const sim = this.sim;
+    if (this.status === 'IDLE') return { windDir: 1, gust: null, floods: [], deepWater: false };
+    const gust = sim.activeGust;
+    return {
+      windDir: windDirAt(sim.weather, sim.playerZ),
+      gust: gust && { dir: gust.dir, metersLeft: Math.max(0, gust.z - sim.playerZ) },
+      floods: sim.weather.floods.filter((f) => f.endZ > sim.playerZ - 5 && f.startZ < sim.playerZ + 180),
+      deepWater: sim.inDeepWater,
+    };
+  }
+
+  /** The flood the player is in, or the next one if it starts within 60 m. */
+  private floodHud(): HudState['flood'] {
+    const sim = this.sim;
+    const flood = sim.flood ?? floodAt(sim.weather, sim.playerZ + 60);
+    if (!flood) return null;
+    const ahead = sim.playerZ < flood.startZ;
+    return {
+      safeLane: flood.safeLane,
+      metersLeft: Math.max(0, Math.ceil((ahead ? flood.startZ : flood.endZ) - sim.playerZ)),
+      inDeepWater: sim.inDeepWater,
+      ahead,
+    };
   }
 
   /** The player's name is added by the UI, which owns the setting. */
@@ -371,10 +438,12 @@ export class GameController {
     const sim = this.sim;
     const distance = Math.floor(Math.min(sim.playerZ, COURSE_LENGTH_M));
     if (this.gateFeedback && sim.elapsedMs > this.gateFeedbackUntilMs) this.gateFeedback = null;
+    if (this.gustResult && sim.elapsedMs > this.gustResultUntilMs) this.gustResult = null;
     const gate = sim.activeGate;
     this.callbacks.onHud({
       ghostDeltaMeters: this.ghost ? Math.floor(distance - Math.min(this.ghostZ, COURSE_LENGTH_M)) : 0,
       gateFeedback: this.gateFeedback,
+      gustResult: this.gustResult,
       practice: this.practice,
       coach: this.coach(),
       state: {
@@ -403,6 +472,10 @@ export class GameController {
           metersLeft: Math.max(0, Math.ceil(gate.z - sim.playerZ)),
           lane: sim.player.lane,
         },
+        windDir: windDirAt(sim.weather, sim.playerZ),
+        gust: sim.activeGust && { dir: sim.activeGust.dir, metersLeft: Math.max(0, Math.ceil(sim.activeGust.z - sim.playerZ)) },
+        flood: this.floodHud(),
+        gustsBraced: sim.gustsBraced,
       },
     });
   }
@@ -411,6 +484,7 @@ export class GameController {
 export const INITIAL_HUD = (seed: string): HudSnapshot => ({
   ghostDeltaMeters: 0,
   gateFeedback: null,
+  gustResult: null,
   practice: false,
   coach: null,
   state: {
@@ -433,5 +507,9 @@ export const INITIAL_HUD = (seed: string): HudSnapshot => ({
     gatesCorrect: 0,
     gatesTotal: AREAS.length * GATES_PER_AREA,
     gate: null,
+    windDir: 1 as WindDir,
+    gust: null,
+    flood: null,
+    gustsBraced: 0,
   },
 });

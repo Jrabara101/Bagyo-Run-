@@ -3,6 +3,7 @@ import { Mulberry32 } from './rng';
 import { CHUNK_LENGTH, FINISH_CLEAR_M } from './constants';
 import { placePattern } from './patterns';
 import { gatePlan, inGateClearZone } from './quiz';
+import { highGroundSupplies, inWeatherClearZone, weatherPlan } from './weather';
 import { areaAt, COURSE_LENGTH_M } from '../content/areas';
 import { signalAt } from '../content/signals';
 import { GO_BAG_ITEMS } from '../content/items';
@@ -88,9 +89,15 @@ export function generateChunk(chunkIndex: number, seed: string): TrackChunk {
     }
   }
 
-  // Quiz gates need a clear run-up so the player can read and pick a lane
+  // Quiz gates need a clear run-up so the player can read and pick a lane; a gust's shove and
+  // a flood's high ground stay clear too
   const gates = gatePlan(seed);
-  chunk.obstacles = chunk.obstacles.filter((o) => !inGateClearZone(o.zPos, gates));
+  const weather = weatherPlan(seed);
+  chunk.obstacles = chunk.obstacles.filter((o) => !inGateClearZone(o.zPos, gates) && !inWeatherClearZone(o.zPos, o.lane, weather));
+  for (const [z, lane] of highGroundSupplies(weather)) {
+    if (Math.floor(z / CHUNK_LENGTH) !== chunkIndex) continue;
+    chunk.collectibles.push({ id: `hg_${Math.round(z)}`, type: 'supply', lane, zPos: z, yOffset: 0, collected: false });
+  }
 
   for (const item of goBagPlan(seed)) {
     if (Math.floor(item.z / CHUNK_LENGTH) !== chunkIndex) continue;

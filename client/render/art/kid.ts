@@ -70,8 +70,24 @@ export function drawKid(ctx: Ctx, x: number, y: number, s: number, phase: number
   ctx.lineTo(-3.6 * s, -19.5 * s);
   ctx.closePath();
   ctx.fill();
+  // Shading: the wet coat is lit from the upper left and darker toward the hem and the right
+  const shade = ctx.createLinearGradient(-5 * s, -19.5 * s, 5 * s, -8 * s);
+  shade.addColorStop(0, 'rgba(255,255,255,.22)');
+  shade.addColorStop(0.45, 'rgba(255,255,255,0)');
+  shade.addColorStop(1, 'rgba(0,0,0,.28)');
+  ctx.fillStyle = shade;
+  ctx.beginPath();
+  ctx.moveTo(-5 * s, -8 * s);
+  ctx.lineTo(5 * s, -8 * s);
+  ctx.lineTo(3.6 * s, -19.5 * s);
+  ctx.lineTo(-3.6 * s, -19.5 * s);
+  ctx.closePath();
+  ctx.fill();
   ctx.fillStyle = 'rgba(0,0,0,.15)';
   ctx.fillRect(-5 * s, -9.2 * s, 10 * s, 1.2 * s);
+  // Reflective tape around the hem
+  ctx.fillStyle = c === KID_COLORS ? '#dfe7ec' : c.coatShade;
+  ctx.fillRect(-4.8 * s, -10.6 * s, 9.6 * s, 0.9 * s);
   // Go-Bag
   ctx.fillStyle = c.bag;
   ctx.fillRect(-3.4 * s, -18.6 * s, 6.8 * s, 8 * s);
@@ -87,6 +103,11 @@ export function drawKid(ctx: Ctx, x: number, y: number, s: number, phase: number
   ctx.fillStyle = c.coatShade;
   ctx.beginPath();
   ctx.arc(0, -21.6 * s, 3.6 * s, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.fill();
+  // Rain sheen on the hood
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.beginPath();
+  ctx.ellipse(-1.3 * s, -23.2 * s, 1.3 * s, 0.7 * s, -0.5, 0, TAU);
   ctx.fill();
   ctx.restore();
 }

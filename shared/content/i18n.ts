@@ -10,10 +10,10 @@ const B = (en: string, fil: string): Bilingual => ({ en, fil });
 
 export const UI = {
   // Title and menu
-  kicker: B('A typhoon-preparedness runner', 'Takbuhan ng paghahanda sa bagyo'),
+  kicker: B('A storm-preparedness runner: typhoon, flood and lightning', 'Takbuhan ng paghahanda sa bagyo, baha at kidlat'),
   intro: B(
-    'Run from home to the evacuation center as the typhoon rises from Signal No. 1 to 5. Jump, slide and switch lanes past hazards, grab supplies, and pack all 8 Go-Bag items. At each quiz gate, run into the lane with the right answer. You have 3 hearts.',
-    'Tumakbo mula sa bahay papunta sa evacuation center habang lumalakas ang bagyo mula Signal No. 1 hanggang 5. Tumalon, dumausdos at lumipat ng lane para iwasan ang panganib, mangolekta ng suplay, at kumpletuhin ang 8 gamit sa Go-Bag. Sa bawat quiz gate, tumakbo sa lane ng tamang sagot. May 3 puso ka.'
+    'Run from home to the evacuation center as the storm rises from Signal No. 1 to 5. Dodge hazards, crouch through wind gusts, keep to high ground in floods, and leave any lane that crackles before lightning strikes. Answer each quiz gate by lane and pack your Go-Bag. You have 3 hearts.',
+    'Tumakbo mula sa bahay papunta sa evacuation center habang lumalakas ang bagyo mula Signal No. 1 hanggang 5. Iwasan ang panganib, yumuko sa bugso ng hangin, manatili sa mataas na lugar kapag may baha, at umalis sa lane na kumikislap bago tumama ang kidlat. Sagutin ang bawat quiz gate gamit ang lane at kumpletuhin ang Go-Bag. May 3 puso ka.'
   ),
   play: B('Takbo!', 'Takbo!'),
   pressToRun: B('Press SPACE or ENTER to run', 'Pindutin ang SPACE o ENTER para tumakbo'),
@@ -70,6 +70,23 @@ export const UI = {
   coachSupply: B('Grab supplies for points', 'Kunin ang suplay para sa puntos'),
   coachBayanihan: B('Bayanihan is ready: SPACE / double-tap', 'Handa ang Bayanihan: SPACE / i-double-tap'),
   coachGate: B('Quiz gate: run into the lane with the right answer', 'Quiz gate: tumakbo sa lane ng tamang sagot'),
+  coachGust: B('GUST! Slide ↓ as it hits to crouch and hold your lane', 'BUGSO NG HANGIN! Dumausdos ↓ pagtama nito para yumuko at manatili sa lane'),
+  coachFlood: B('Flood ahead: run on the high ground behind the sandbags', 'Baha sa unahan: tumakbo sa mataas na lugar sa likod ng mga sandbag'),
+  coachLightning: B('Lightning! Leave the glowing lane', 'Kidlat! Umalis sa kumikislap na lane'),
+
+  // Weather on the HUD
+  hudWind: B('Wind', 'Hangin'),
+  hudGust: B('GUST · CROUCH!', 'BUGSO · YUMUKO!'),
+  hudGustHint: B('Slide ↓ as it hits', 'Dumausdos ↓ pagtama'),
+  hudBraced: B('Braced!', 'Nakatagal!'),
+  hudPushed: B('Shoved by the wind!', 'Tinulak ng hangin!'),
+  hudFloodAhead: B('Flood ahead', 'Baha sa unahan'),
+  hudFlooded: B('Flooded road', 'Bahang daan'),
+  hudHighGround: B('High ground', 'Mataas na lugar'),
+  hudDeepWater: B('Deep water: slow, no jumping', 'Malalim: mabagal, hindi makatalon'),
+  laneLeft: B('left', 'kaliwa'),
+  laneCenter: B('middle', 'gitna'),
+  laneRight: B('right', 'kanan'),
   practiceBadge: B('Practice: not scored', 'Pagsasanay: walang iskor'),
 
   // Pause and settings
@@ -182,6 +199,19 @@ export const UI = {
   htpBay: B(
     'Near misses and right answers fill the meter. When it is ready, call your neighbors: for 6 seconds you run faster and pull in supplies.',
     'Napupuno ang meter sa muntik-matamaan at tamang sagot. Kapag handa na, tawagin ang mga kapitbahay: sa loob ng 6 na segundo, mas mabilis ka at hinihila mo ang suplay.'
+  ),
+  htpWeatherTitle: B('Storm weather', 'Panahon sa gitna ng bagyo'),
+  htpGust: B(
+    'Wind gusts: arrows on the road show which way it will blow. Slide (crouch) as it hits to hold your lane and earn a bonus, or it shoves you a lane over.',
+    'Bugso ng hangin: makikita sa arrow sa daan kung saan ito iihip. Dumausdos (yumuko) pagtama nito para manatili sa lane at makakuha ng bonus; kung hindi, itutulak ka nito sa katabing lane.'
+  ),
+  htpFlood: B(
+    'Floods: two lanes are deep water that slows you down and stops you jumping. Run on the high ground behind the sandbags. Never wade through floodwater if you can avoid it.',
+    'Baha: malalim na tubig ang dalawang lane, babagal ka at hindi makakatalon. Tumakbo sa mataas na lugar sa likod ng mga sandbag. Iwasang lumusong sa baha hangga\'t maaari.'
+  ),
+  htpLightning: B(
+    'Thunderstorms: a lane that glows and crackles is about to be struck. Get out of it. Lightning strikes most in open fields, so take shelter early.',
+    'Kulog at kidlat: tatamaan ng kidlat ang lane na kumikislap. Umalis agad dito. Madalas tumama ang kidlat sa malawak at bukas na lugar, kaya sumilong nang maaga.'
   ),
   htpSignalsTitle: B('Wind signals', 'Mga wind signal'),
   htpSignals: B(

@@ -8,7 +8,8 @@ export type HazardId =
   | 'open_manhole'
   | 'flood_hole'
   | 'swept_jeepney'
-  | 'floating_debris';
+  | 'floating_debris'
+  | 'lightning_strike';
 
 /** How the player gets past it. `lane` means the only way is to change lanes. */
 export type AvoidBy = 'jump' | 'slide' | 'lane';
@@ -31,4 +32,5 @@ export const HAZARDS: Record<HazardId, Hazard> = {
   flood_hole: { id: 'flood_hole', avoid: 'jump', collision: 'pitfall', height: 10, name: { en: 'Hidden hole under floodwater', fil: 'Butas na natatakpan ng baha' } },
   swept_jeepney: { id: 'swept_jeepney', avoid: 'lane', collision: 'moving_train', height: 70, name: { en: 'Swept-away jeepney', fil: 'Jeep na tinangay ng baha' } },
   floating_debris: { id: 'floating_debris', avoid: 'lane', collision: 'moving_train', height: 70, name: { en: 'Floating debris', fil: 'Lumulutang na kalat' } },
+  lightning_strike: { id: 'lightning_strike', avoid: 'lane', collision: 'moving_train', height: 70, name: { en: 'Lightning strike', fil: 'Tama ng kidlat' } },
 };

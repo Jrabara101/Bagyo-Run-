@@ -2,6 +2,10 @@ import type { HazardId } from '../../../shared/content/hazards';
 import type { LaneIndex } from '../../../shared/sim/types';
 import { Ctx, DISPLAY_FONT, TAU, View, depth, glow, laneCenterU, laneW, quad, xAt, yAt } from '../view';
 import { JEEP } from './palette';
+import { bolt, contactShadow } from './weather';
+
+/** A lightning strike hits the road when the player is this many meters away; before, it warns. */
+export const STRIKE_AT_M = 26;
 
 /**
  * Every hazard is sized in lane widths so it matches the sim's clearances (HEIGHT_TO_LANE): jump
@@ -14,7 +18,12 @@ export function drawHazard(ctx: Ctx, v: View, id: HazardId, lane: LaneIndex, zRe
   const lw = laneW(v, p);
   const x = xAt(v, laneCenterU(lane), p);
   const y = yAt(v, p);
+  if (id !== 'open_manhole' && id !== 'flood_hole' && id !== 'lightning_strike' && id !== 'power_line' && id !== 'torn_tarp') {
+    contactShadow(ctx, x, y, lw * 0.6, 0.45);
+  }
   switch (id) {
+    case 'lightning_strike':
+      return lightningStrike(ctx, v, x, y, lw, zRel, t);
     case 'debris_pile':
       return debrisPile(ctx, x, y, lw * 0.8);
     case 'fallen_branch':
@@ -31,6 +40,61 @@ export function drawHazard(ctx: Ctx, v: View, id: HazardId, lane: LaneIndex, zRe
       return sweptJeepney(ctx, x, y, lw, t);
     case 'floating_debris':
       return floatingDebris(ctx, x, y, lw, t);
+  }
+}
+
+/**
+ * Thunderstorm: before the strike the lane crackles, a glowing ring marking where it will hit;
+ * then the bolt comes down and leaves the road scorched and sparking. Leave the lane.
+ */
+function lightningStrike(ctx: Ctx, v: View, x: number, y: number, lw: number, zRel: number, t: number) {
+  const rx = lw * 0.42;
+  const ry = rx * 0.26;
+  if (zRel > STRIKE_AT_M) {
+    const pulse = 0.5 + Math.sin(t * 14) * 0.3;
+    glow(ctx, x, y - ry, lw * 0.7, `rgba(120,160,255,${0.35 * pulse})`);
+    ctx.strokeStyle = `rgba(170,200,255,${0.6 + pulse * 0.4})`;
+    ctx.lineWidth = Math.max(1, lw * 0.025);
+    ctx.beginPath();
+    ctx.ellipse(x, y - ry * 0.3, rx * (0.8 + pulse * 0.2), ry * (0.8 + pulse * 0.2), 0, 0, TAU);
+    ctx.stroke();
+    // Crackle: little arcs jumping over the ring
+    ctx.strokeStyle = 'rgba(225,235,255,.85)';
+    ctx.lineWidth = Math.max(1, lw * 0.012);
+    for (let i = 0; i < 4; i++) {
+      const a = Math.floor(t * 18 + i * 7) * 1.7;
+      const px = x + Math.cos(a) * rx * 0.8;
+      const py = y - ry * 0.3 + Math.sin(a) * ry * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(a + 1) * lw * 0.05, py - lw * 0.08);
+      ctx.lineTo(px + Math.cos(a + 2) * lw * 0.03, py - lw * 0.15);
+      ctx.stroke();
+    }
+    // A faint leader reaching down from the clouds
+    const gr = ctx.createLinearGradient(0, 0, 0, y);
+    gr.addColorStop(0, `rgba(150,180,255,${0.12 * pulse})`);
+    gr.addColorStop(1, 'rgba(150,180,255,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(x - lw * 0.08, 0, lw * 0.16, y);
+    return;
+  }
+  // Struck: the bolt for a moment, then the scorch mark and sparks
+  const since = (STRIKE_AT_M - zRel) / 20; // ~seconds since the strike at run pace
+  ctx.fillStyle = 'rgba(15,12,10,.75)';
+  ctx.beginPath();
+  ctx.ellipse(x, y - ry * 0.3, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  glow(ctx, x, y - ry * 0.3, rx * 1.1, `rgba(255,150,60,${Math.max(0.15, 0.7 - since)})`);
+  if (since < 0.45) {
+    bolt(ctx, v, x + Math.sin(x) * v.W * 0.1, x, y - ry * 0.3, Math.floor(t * 24) / 24 + x, 1.6);
+    glow(ctx, x, y - lw * 0.2, lw * 1.6, `rgba(220,230,255,${0.8 * (1 - since / 0.45)})`);
+  }
+  ctx.fillStyle = '#ffcf6b';
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + t * 3;
+    const f = (t * 1.5 + i * 0.37) % 1;
+    ctx.fillRect(x + Math.cos(a) * rx * f, y - ry - Math.sin(f * Math.PI) * lw * 0.25, Math.max(1, lw * 0.015), Math.max(1, lw * 0.015));
   }
 }
 

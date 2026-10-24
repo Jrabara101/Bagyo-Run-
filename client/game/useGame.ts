@@ -60,6 +60,7 @@ export function useGame(
     gameState: hud.state,
     ghostDeltaMeters: hud.ghostDeltaMeters,
     gateFeedback: hud.gateFeedback,
+    gustResult: hud.gustResult,
     practice: hud.practice,
     coach: hud.coach,
     startGame,

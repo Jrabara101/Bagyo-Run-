@@ -1,6 +1,7 @@
 import { GameSimulation } from '../shared/sim/simulation';
 import { JUMP_AIR_SEC, RULES_VERSION } from '../shared/sim/constants';
 import { GATE_CLEAR_BEFORE_M } from '../shared/sim/quiz';
+import { floodAt } from '../shared/sim/weather';
 import type { Action, InputEvent, RunSubmissionPayload, SimEvent } from '../shared/sim/types';
 
 export type QuizStrategy = 'correct' | 'wrong' | 'ignore';
@@ -8,7 +9,8 @@ export type QuizStrategy = 'correct' | 'wrong' | 'ignore';
 /**
  * A simple bot that plays a whole run: jumps holes and low hazards so it peaks over them,
  * slides under overhead ones, changes lanes around lane blockers, fires Bayanihan when ready,
- * and at quiz gates moves to the right lane (or a wrong one, or stays put).
+ * and at quiz gates moves to the right lane (or a wrong one, or stays put). It crouches as a
+ * wind gust hits and heads for the high ground before a flood.
  * Used by tests to produce long, realistic input logs.
  */
 export function playAutopilot(seed: string, { maxTicks = 20000, quiz = 'correct' as QuizStrategy } = {}) {
@@ -27,9 +29,17 @@ export function playAutopilot(seed: string, { maxTicks = 20000, quiz = 'correct'
     const next = inLane(lane, 40).sort((a, b) => a.zPos - b.zPos)[0];
 
     const gate = sim.activeGate;
+    const gust = sim.activeGust;
+    const flood = floodAt(sim.weather, sim.playerZ + 30);
+    const toHighGround = flood && flood.safeLane !== lane ? (flood.safeLane < lane ? -1 : 1) : 0;
+    const sideFree = (l: number) => l >= 0 && l <= 2 && inLane(l, speed * 0.6).length === 0;
     const gateTarget = !gate || quiz === 'ignore' ? null : quiz === 'correct' ? gate.correctLane : (gate.correctLane + 1) % 3;
     if (gate && gateTarget !== null && gateTarget !== lane && gate.z - sim.playerZ < GATE_CLEAR_BEFORE_M - 5) {
       actions.push(gateTarget < lane ? 'LEFT' : 'RIGHT');
+    } else if (gust && !sim.player.isSliding && gust.z - sim.playerZ < 6) {
+      actions.push('SLIDE');
+    } else if (toHighGround && sideFree(lane + toHighGround)) {
+      actions.push(toHighGround < 0 ? 'LEFT' : 'RIGHT');
     } else if (sim.bayanihanGauge >= 40 && !sim.isBayanihanActive) {
       actions.push('BAYANIHAN');
     } else if (next) {

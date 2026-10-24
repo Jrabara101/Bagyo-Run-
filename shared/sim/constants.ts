@@ -5,7 +5,7 @@ import { LaneIndex } from './types';
  * replays (pace, hazards, scoring, gates...). The leaderboard only lists runs of the current
  * version, so old runs never show a score the server can no longer reproduce.
  */
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2;
 
 export const FIXED_TIMESTEP_SEC = 1 / 60;
 export const TICK_MS = FIXED_TIMESTEP_SEC * 1000;

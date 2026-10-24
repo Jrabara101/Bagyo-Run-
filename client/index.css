@@ -79,23 +79,27 @@
     repeating-linear-gradient(45deg, #c9a15a 0 4px, #6e3a26 4px 8px);
 }
 
-.sheet {
-  position: relative;
-  background: #1e1d2b;
-  border: 1px solid #2f2d42;
-  border-radius: 0.9rem;
-  padding-top: 1.1rem;
-  color: #f1ebdd;
-  overflow: hidden;
-}
-.sheet::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 8px;
-  background:
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.18) 0 5px, transparent 5px 10px),
-    repeating-linear-gradient(45deg, #c9a15a 0 5px, #6e3a26 5px 10px);
+/* In the components layer so utilities such as overflow-y-auto on a sheet win over its defaults */
+@layer components {
+  .sheet {
+    position: relative;
+    background: #1e1d2b;
+    border: 1px solid #2f2d42;
+    border-radius: 0.9rem;
+    padding-top: 1.1rem;
+    color: #f1ebdd;
+    overflow: hidden;
+  }
+  .sheet::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 8px;
+    z-index: 1;
+    background:
+      repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.18) 0 5px, transparent 5px 10px),
+      repeating-linear-gradient(45deg, #c9a15a 0 5px, #6e3a26 5px 10px);
+  }
 }
 
 /* Jeepney sign-paint buttons */

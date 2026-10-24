@@ -32,7 +32,7 @@ export const DailyGauntletCard: React.FC<DailyGauntletCardProps> = ({ isOpen, da
         aria-modal="true"
         aria-labelledby="daily-title"
         onClick={(e) => e.stopPropagation()}
-        className="sheet w-full max-w-md px-5 md:px-7 pb-6 flex flex-col gap-5 font-body"
+        className="sheet w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto px-5 md:px-7 pb-6 flex flex-col gap-5 font-body"
       >
         <div className="flex items-start justify-between gap-3">
           <div>

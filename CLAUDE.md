@@ -46,6 +46,16 @@ npm run typecheck  # tsc --noEmit
 npm run build      # production build
 ```
 
+## Hosting and CI
+
+- GitHub: https://github.com/Jrabara101/Bagyo-Run- (public). Tag `pre-weather` marks the Phase 6 version.
+- CI: `.github/workflows/ci.yml` runs typecheck, tests and build on every push to `main` and every PR.
+- Vercel (`vercel.json`) serves the client only, as a static Vite build; each push to `main`
+  deploys to production, and PRs get preview URLs. The Fastify server (leaderboard, ghosts) is not
+  hosted there: better-sqlite3 needs a writable disk, which Vercel functions lack. The deployed
+  game runs in its offline mode (daily seed worked out locally, runs and board kept on the
+  device). There is deliberately no catch-all rewrite, so `/api/*` 404s and the badge says offline.
+
 ## Status
 
 - Phase 0 (setup and restructure) — done 2026-10-14.

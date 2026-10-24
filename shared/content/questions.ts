@@ -708,6 +708,308 @@ export const QUESTIONS: readonly QuizQuestion[] = [
     source: { org: 'BFP', ref: 'Bureau of Fire Protection fire safety advisory' },
     reviewed: false,
   }),
+
+  // ---------------------------------------------------------------- Harder: thunderstorms, wind and floods
+  Q({
+    id: 'thunder_heard',
+    areas: ['palayan', 'barangay'],
+    prompt: {
+      en: 'You hear thunder, but it is not raining yet where you are. Are you safe from lightning?',
+      fil: 'May naririnig kang kulog, pero hindi pa umuulan sa kinaroroonan mo. Ligtas ka ba sa kidlat?',
+    },
+    choices: [
+      { en: 'Yes, until the rain starts', fil: 'Oo, hangga’t walang ulan' },
+      { en: 'Yes, if the sky is still bright', fil: 'Oo, kung maliwanag pa ang langit' },
+      { en: 'No, go indoors now', fil: 'Hindi, pumasok na sa loob' },
+    ],
+    answer: 2,
+    lesson: {
+      en: 'If you can hear thunder, you are close enough to be struck. Lightning can hit far ahead of the rain. Get inside a solid building right away.',
+      fil: 'Kapag naririnig mo ang kulog, sapat na ang lapit mo para tamaan ng kidlat. Puwedeng tumama ang kidlat nang malayo sa ulan. Pumasok agad sa matibay na gusali.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm and lightning safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'lightning_open_field',
+    areas: ['palayan'],
+    prompt: {
+      en: 'Lightning is striking and you are in an open rice field with no building nearby. What is the least risky thing to do?',
+      fil: 'Kumikidlat at nasa gitna ka ng palayan na walang malapit na gusali. Ano ang pinakamababang panganib na gawin?',
+    },
+    choices: [
+      { en: 'Lie flat on the wet ground', fil: 'Dumapa sa basang lupa' },
+      { en: 'Crouch low, feet together', fil: 'Yumuko nang mababa, magkadikit ang paa' },
+      { en: 'Stand under the lone tree', fil: 'Tumayo sa ilalim ng nag-iisang puno' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'Crouch low on the balls of your feet with your feet together and head down. Do not lie flat: current spreads through wet ground. A lone tree draws lightning.',
+      fil: 'Yumuko nang mababa, nakatingkayad, magkadikit ang paa at nakayuko ang ulo. Huwag dumapa: kumakalat ang kuryente sa basang lupa. Tinatamaan ng kidlat ang nag-iisang puno.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm and lightning safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'lightning_worst_shelter',
+    areas: ['palayan', 'evac'],
+    prompt: {
+      en: 'Which of these is the WORST place to wait out a thunderstorm?',
+      fil: 'Alin dito ang PINAKAMASAMANG lugar na pagtigilan habang may kulog at kidlat?',
+    },
+    choices: [
+      { en: 'Inside a concrete house', fil: 'Sa loob ng bahay na kongkreto' },
+      { en: 'An open nipa hut in the field', fil: 'Bukas na kubo sa gitna ng bukid' },
+      { en: 'Inside a closed hard-top car', fil: 'Sa loob ng saradong kotse na may bubong na bakal' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'Open sheds, kubos and waiting sheds in fields do not protect you from lightning. A solid building, or a closed car with a metal roof, is much safer.',
+      fil: 'Hindi ka pinoprotektahan sa kidlat ng bukas na kubo o waiting shed sa bukid. Mas ligtas ang matibay na gusali o saradong sasakyan na may bubong na metal.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm and lightning safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'lightning_wait',
+    areas: ['palayan', 'evac'],
+    prompt: {
+      en: 'The thunderstorm seems to be over. How long should you wait after the last thunder before going outside?',
+      fil: 'Mukhang tapos na ang kulog at kidlat. Gaano katagal maghihintay mula sa huling kulog bago lumabas?',
+    },
+    choices: [
+      { en: 'No need to wait', fil: 'Hindi na kailangang maghintay' },
+      { en: '5 minutes', fil: '5 minuto' },
+      { en: '30 minutes', fil: '30 minuto' },
+    ],
+    answer: 2,
+    lesson: {
+      en: 'Lightning can still strike from the tail of a storm. Wait about 30 minutes after the last thunder before going back outside.',
+      fil: 'Puwede pa ring kumidlat mula sa buntot ng bagyo. Maghintay nang mga 30 minuto mula sa huling kulog bago lumabas.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm and lightning safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'lightning_indoors',
+    areas: ['barangay', 'evac'],
+    prompt: {
+      en: 'You are indoors during a strong thunderstorm. Which should you AVOID?',
+      fil: 'Nasa loob ka ng bahay habang malakas ang kulog at kidlat. Alin ang dapat IWASAN?',
+    },
+    choices: [
+      { en: 'Taking a shower', fil: 'Maligo sa shower' },
+      { en: 'Reading a book', fil: 'Magbasa ng libro' },
+      { en: 'Listening to a battery radio', fil: 'Makinig sa de-bateryang radyo' },
+    ],
+    answer: 0,
+    lesson: {
+      en: 'Lightning can travel through water pipes and wires. Avoid showers, washing dishes and corded phones or plugged-in appliances until the storm passes.',
+      fil: 'Puwedeng dumaloy ang kidlat sa tubo ng tubig at sa kawad. Iwasan ang pagligo, paghuhugas ng pinggan, at teleponong may kordon o nakasaksak na appliance hanggang lumipas ang bagyo.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm and lightning safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'thunderstorm_advisory',
+    areas: ['barangay'],
+    prompt: {
+      en: 'PAGASA issues a Thunderstorm ADVISORY for your area. When can the storm hit?',
+      fil: 'Naglabas ang PAGASA ng Thunderstorm ADVISORY para sa inyong lugar. Kailan maaaring tumama ang bagyo?',
+    },
+    choices: [
+      { en: 'Within the next 2 hours', fil: 'Sa loob ng susunod na 2 oras' },
+      { en: 'Within the next 3 days', fil: 'Sa loob ng susunod na 3 araw' },
+      { en: 'Only at night', fil: 'Sa gabi lamang' },
+    ],
+    answer: 0,
+    lesson: {
+      en: 'A Thunderstorm Watch means one is possible within about 12 hours. An Advisory means it is happening or expected within about 2 hours: act now.',
+      fil: 'Ang Thunderstorm Watch ay posibleng kulog at kidlat sa loob ng mga 12 oras. Ang Advisory ay nangyayari na o inaasahan sa loob ng mga 2 oras: kumilos na.',
+    },
+    source: { org: 'PAGASA', ref: 'Thunderstorm Watch, Advisory and Information' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'typhoon_rotation',
+    areas: ['barangay', 'palayan'],
+    prompt: {
+      en: 'Seen from above, which way do typhoons in the Philippines spin?',
+      fil: 'Kung titingnan mula sa itaas, saang direksiyon umiikot ang mga bagyo sa Pilipinas?',
+    },
+    choices: [
+      { en: 'Clockwise', fil: 'Pakanan (clockwise)' },
+      { en: 'Counterclockwise', fil: 'Pakaliwa (counterclockwise)' },
+      { en: 'They do not spin', fil: 'Hindi sila umiikot' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'In the Northern Hemisphere, tropical cyclones spin counterclockwise. That is why the wind direction changes as a typhoon passes.',
+      fil: 'Sa Northern Hemisphere, pakaliwa (counterclockwise) umiikot ang mga bagyo. Kaya nagbabago ang direksiyon ng hangin habang dumaraan ang bagyo.',
+    },
+    source: { org: 'PAGASA', ref: 'Tropical cyclone information and climatology' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'eyewall',
+    areas: ['palayan', 'evac'],
+    prompt: {
+      en: 'Which part of a typhoon has the strongest winds?',
+      fil: 'Aling bahagi ng bagyo ang may pinakamalakas na hangin?',
+    },
+    choices: [
+      { en: 'The eye in the middle', fil: 'Ang mata sa gitna' },
+      { en: 'The far outer rain bands', fil: 'Ang pinakamalayong rain band' },
+      { en: 'The eyewall around the eye', fil: 'Ang eyewall sa paligid ng mata' },
+    ],
+    answer: 2,
+    lesson: {
+      en: 'The eyewall, the ring of storm clouds around the calm eye, has the strongest winds and heaviest rain. After the eye passes, the eyewall hits again from the other side.',
+      fil: 'Nasa eyewall, ang singsing ng ulap sa paligid ng kalmadong mata, ang pinakamalakas na hangin at ulan. Paglampas ng mata, tatama ulit ang eyewall mula sa kabilang panig.',
+    },
+    source: { org: 'PAGASA', ref: 'Tropical cyclone information and climatology' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'gale_warning',
+    areas: ['estero'],
+    prompt: {
+      en: 'PAGASA raises a Gale Warning over your coast. Who must stay ashore?',
+      fil: 'Nagtaas ang PAGASA ng Gale Warning sa inyong baybayin. Sino ang dapat manatili sa pampang?',
+    },
+    choices: [
+      { en: 'Fishers in small boats', fil: 'Mga mangingisda sa maliliit na bangka' },
+      { en: 'Only big cargo ships', fil: 'Malalaking barkong pangkargamento lang' },
+      { en: 'No one, it is about rain', fil: 'Wala, tungkol ito sa ulan' },
+    ],
+    answer: 0,
+    lesson: {
+      en: 'A Gale Warning means strong winds and rough to very rough seas. Fishing boats and other small sea vessels should not go out.',
+      fil: 'Ang Gale Warning ay malakas na hangin at maalon hanggang napakaalong dagat. Hindi dapat pumalaot ang mga bangkang pangisda at iba pang maliliit na sasakyang-dagat.',
+    },
+    source: { org: 'PAGASA', ref: 'Gale Warning' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'flood_depth_knockdown',
+    areas: ['estero'],
+    prompt: {
+      en: 'How deep does fast-moving floodwater need to be to knock an adult off their feet?',
+      fil: 'Gaano kalalim ang rumaragasang baha para matumba ang isang taong nasa hustong gulang?',
+    },
+    choices: [
+      { en: 'Only about 15 cm (ankle to shin)', fil: 'Mga 15 cm lang (bukong-bukong hanggang binti)' },
+      { en: 'At least chest-deep', fil: 'Hindi bababa sa hanggang dibdib' },
+      { en: 'Only over 2 meters', fil: 'Lampas 2 metro lang' },
+    ],
+    answer: 0,
+    lesson: {
+      en: 'Moving water is much stronger than it looks: about 15 cm can knock you down and about 60 cm can carry a car away. Never cross it.',
+      fil: 'Mas malakas ang umaagos na tubig kaysa sa itsura nito: mga 15 cm ay kayang magpatumba sa iyo at mga 60 cm ay kayang tangayin ang kotse. Huwag itong tawirin.',
+    },
+    source: { org: 'NDRRMC', ref: 'Flood safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'car_stalls_flood',
+    areas: ['estero', 'evac'],
+    prompt: {
+      en: 'Your family’s car stalls as floodwater rises around it. What should you do?',
+      fil: 'Tumirik ang kotse ng pamilya mo habang tumataas ang baha sa paligid nito. Ano ang dapat gawin?',
+    },
+    choices: [
+      { en: 'Stay inside and keep trying to start it', fil: 'Manatili sa loob at subukang paandarin' },
+      { en: 'Push it through the water', fil: 'Itulak ito sa baha' },
+      { en: 'Leave it and go to higher ground', fil: 'Iwan ito at pumunta sa mataas na lugar' },
+    ],
+    answer: 2,
+    lesson: {
+      en: 'A car can float and be swept away in rising water. If it stalls, get out and move to higher ground at once, if you can do it safely.',
+      fil: 'Puwedeng lumutang at matangay ang kotse sa tumataas na baha. Kapag tumirik, lumabas at pumunta agad sa mataas na lugar, kung ligtas itong gawin.',
+    },
+    source: { org: 'NDRRMC', ref: 'Flood safety tips' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'cyclones_per_year',
+    areas: ['barangay', 'evac'],
+    prompt: {
+      en: 'About how many tropical cyclones enter the Philippine Area of Responsibility in an average year?',
+      fil: 'Mga ilang bagyo ang pumapasok sa Philippine Area of Responsibility sa karaniwang taon?',
+    },
+    choices: [
+      { en: 'About 5', fil: 'Mga 5' },
+      { en: 'About 20', fil: 'Mga 20' },
+      { en: 'About 50', fil: 'Mga 50' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'About 20 tropical cyclones enter the PAR each year, and several make landfall. Preparing is not a one-time thing: keep your Go-Bag ready all year.',
+      fil: 'Mga 20 bagyo ang pumapasok sa PAR bawat taon, at ilan dito ang tumatama sa lupa. Hindi minsanan ang paghahanda: panatilihing handa ang Go-Bag buong taon.',
+    },
+    source: { org: 'PAGASA', ref: 'Tropical cyclone climatology of the Philippines' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'electrocution_rescue',
+    areas: ['estero', 'barangay'],
+    prompt: {
+      en: 'Someone is touching a live wire that fell into the floodwater. How do you help?',
+      fil: 'May taong nakahawak sa live wire na nahulog sa baha. Paano ka tutulong?',
+    },
+    choices: [
+      { en: 'Pull them away by the arm', fil: 'Hilahin siya sa braso' },
+      { en: 'Wade in to reach them faster', fil: 'Lumusong para mabilis siyang maabot' },
+      { en: 'Shout for the power to be cut first', fil: 'Isigaw na patayin muna ang kuryente' },
+    ],
+    answer: 2,
+    lesson: {
+      en: 'Touching the person or the water can electrocute you too. Get the power cut and call for help. Only an adult with a dry, non-metal pole, standing on dry ground, should move the wire.',
+      fil: 'Makukuryente ka rin kapag hinawakan mo siya o ang tubig. Ipapatay ang kuryente at humingi ng tulong. Matandang may tuyong panungkit na hindi metal, nakatayo sa tuyong lugar, lang ang dapat mag-alis ng kawad.',
+    },
+    source: { org: 'DOH', ref: 'First aid for electric shock' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'wet_appliances',
+    areas: ['evac'],
+    prompt: {
+      en: 'You return home after a flood. The TV and electric fan got soaked. What now?',
+      fil: 'Bumalik kayo sa bahay pagkatapos ng baha. Nabasa ang TV at electric fan. Ano ngayon?',
+    },
+    choices: [
+      { en: 'Plug them in to test them', fil: 'Isaksak para subukan' },
+      { en: 'Have an electrician check them first', fil: 'Ipasuri muna sa electrician' },
+      { en: 'Dry them with a hair dryer, then use', fil: 'Patuyuin sa hair dryer, saka gamitin' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'Flooded appliances and wiring can short-circuit, shock or start a fire. Keep the main switch off until an electrician has checked the house and appliances.',
+      fil: 'Ang nabahang appliance at kawad ay puwedeng mag-short circuit, makakuryente o magsimula ng sunog. Patayin ang main switch hanggang masuri ng electrician ang bahay at mga appliance.',
+    },
+    source: { org: 'NEA', ref: 'Electrical safety after floods' },
+    reviewed: false,
+  }),
+  Q({
+    id: 'ra10821',
+    areas: ['evac'],
+    prompt: {
+      en: 'Which law protects children during disasters, including child-friendly spaces in evacuation centers?',
+      fil: 'Aling batas ang nagpoprotekta sa mga bata sa panahon ng sakuna, kasama ang child-friendly space sa evacuation center?',
+    },
+    choices: [
+      { en: 'RA 10121', fil: 'RA 10121' },
+      { en: 'RA 10821', fil: 'RA 10821' },
+      { en: 'RA 9003', fil: 'RA 9003' },
+    ],
+    answer: 1,
+    lesson: {
+      en: 'RA 10821, the Children’s Emergency Relief and Protection Act (2016), protects children in disasters: safe spaces, continued schooling and quick family reunification.',
+      fil: 'Ang RA 10821, ang Children’s Emergency Relief and Protection Act (2016), ay nagpoprotekta sa mga bata sa sakuna: ligtas na lugar, tuloy-tuloy na pag-aaral at mabilis na pagbabalik sa pamilya.',
+    },
+    source: { org: 'Law', ref: 'Republic Act No. 10821 (2016)' },
+    reviewed: false,
+  }),
 ];
 
 const BY_ID = new Map(QUESTIONS.map((q) => [q.id, q]));

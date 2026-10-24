@@ -25,7 +25,7 @@ export const AREAS: readonly Area[] = [
     name: { en: 'Barangay street', fil: 'Kalye ng barangay' },
     startM: 0,
     endM: 750,
-    hazards: { debris_pile: 3, torn_tarp: 3, open_manhole: 2, swept_jeepney: 1 },
+    hazards: { debris_pile: 3, torn_tarp: 2, open_manhole: 2, swept_jeepney: 1, power_line: 2, lightning_strike: 1 },
     gatesAtM: [280, 560],
   },
   {
@@ -33,7 +33,7 @@ export const AREAS: readonly Area[] = [
     name: { en: 'Estero', fil: 'Estero' },
     startM: 750,
     endM: 1400,
-    hazards: { floating_debris: 3, flood_hole: 3, debris_pile: 2, torn_tarp: 1, lightning_strike: 1 },
+    hazards: { floating_debris: 3, flood_hole: 3, debris_pile: 2, torn_tarp: 1, power_line: 1, lightning_strike: 2 },
     gatesAtM: [920, 1220],
   },
   {
@@ -41,7 +41,7 @@ export const AREAS: readonly Area[] = [
     name: { en: 'Rice fields', fil: 'Palayan' },
     startM: 1400,
     endM: 2200,
-    hazards: { fallen_branch: 3, power_line: 2, flood_hole: 2, floating_debris: 1, lightning_strike: 3 },
+    hazards: { fallen_branch: 3, power_line: 3, flood_hole: 2, floating_debris: 1, lightning_strike: 4 },
     gatesAtM: [1620, 1950],
   },
   {
@@ -49,7 +49,7 @@ export const AREAS: readonly Area[] = [
     name: { en: 'Evacuation center', fil: 'Evacuation center' },
     startM: 2200,
     endM: COURSE_LENGTH_M,
-    hazards: { swept_jeepney: 3, debris_pile: 2, power_line: 2, open_manhole: 2, lightning_strike: 2 },
+    hazards: { swept_jeepney: 3, debris_pile: 2, power_line: 3, open_manhole: 2, lightning_strike: 3 },
     gatesAtM: [2250, 2410],
   },
 ];

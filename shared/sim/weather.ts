@@ -8,7 +8,7 @@ import { AREA_WEATHER, GUSTS_FROM_M, WindDir } from '../content/weather';
 export type { WindDir };
 
 /** The gust's warning shows this far ahead; crouching (sliding) as it hits holds the lane. */
-export const GUST_WARN_M = 45;
+export const GUST_WARN_M = 40;
 /** No hazards this close before and after a gust, so a shove never lands on one. */
 export const GUST_CLEAR_BEFORE_M = 8;
 export const GUST_CLEAR_AFTER_M = 30;
@@ -43,14 +43,18 @@ type Span = [number, number];
 const overlaps = (a: Span, spans: Span[]) => spans.some((b) => a[0] < b[1] && b[0] < a[1]);
 
 /**
- * Where the wind gusts and floods are for this seed, clear of each other. A gust never blows
+ * Where the wind gusts and floods are for this seed. Gusts keep apart from each other and floods
+ * from each other, but a gust can blow across a flood (and shove a runner off the high ground). A
+ * gust never blows
  * while a quiz question is up (it would shove the player off their answer); a flood may be under
  * a question but stops short of the gate itself.
  */
 export function weatherPlan(seed: string): WeatherPlan {
   const rng = new Mulberry32(`${seed}_weather`);
   const gates = gatePlan(seed);
-  const busy: Span[] = gates.map((g) => [g.z - 25, g.z + 35]);
+  const gateLines: Span[] = gates.map((g) => [g.z - 25, g.z + 35]);
+  const gustSpans: Span[] = [];
+  const floodSpans: Span[] = [];
   const questions: Span[] = gates.map((g) => [g.showZ - 20, g.z + 40]);
   const lastM = COURSE_LENGTH_M - FINISH_CLEAR_M - 20;
   const windDir = {} as Record<AreaId, WindDir>;
@@ -65,20 +69,20 @@ export function weatherPlan(seed: string): WeatherPlan {
     const to = Math.min(area.endM - 20, lastM);
 
     // Each gust and flood goes at a seeded pick among the spots where it fits
-    const place = (lo: number, hi: number, span: (z: number) => Span, avoid: Span[][]): number | null => {
+    const place = (lo: number, hi: number, span: (z: number) => Span, avoid: Span[][], into: Span[]): number | null => {
       const spots: number[] = [];
       for (let z = lo; z <= hi; z += PLACE_STEP_M) if (!avoid.some((spans) => overlaps(span(z), spans))) spots.push(z);
       if (spots.length === 0) return null;
       const z = rng.pick(spots);
-      busy.push(span(z));
+      into.push(span(z));
       return z;
     };
     for (let k = 0; k < weather.gusts; k++) {
-      const z = place(Math.max(from, GUSTS_FROM_M), to, (g) => [g - GUST_WARN_M - 5, g + GUST_CLEAR_AFTER_M + 5], [busy, questions]);
+      const z = place(Math.max(from, GUSTS_FROM_M), to, (g) => [g - GUST_WARN_M - 5, g + GUST_CLEAR_AFTER_M + 5], [gateLines, questions, gustSpans], gustSpans);
       if (z !== null) gusts.push({ z, dir });
     }
     for (const length of weather.floods) {
-      const startZ = place(from, to - length, (s) => [s - 20, s + length + 20], [busy]);
+      const startZ = place(from, to - length, (s) => [s - 20, s + length + 20], [gateLines, floodSpans], floodSpans);
       if (startZ !== null) floods.push({ startZ, endZ: startZ + length, safeLane: rng.nextInt(0, 2) as LaneIndex });
     }
   }

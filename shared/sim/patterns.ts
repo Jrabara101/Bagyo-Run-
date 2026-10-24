@@ -104,7 +104,20 @@ function overhead(slot: PatternSlot): boolean {
   return true;
 }
 
-const PATTERNS = [single, pinch, hole, oncoming, overhead];
+/** Storm pinch: lightning or a swept-away jeepney in one lane, a jump-or-slide hazard in another. */
+function stormPinch(slot: PatternSlot): boolean {
+  if (!slot.signal.laneHazards) return false;
+  const blocker = pickHazard(slot, ['moving_train']);
+  const other = pickHazard(slot, JUMP_OR_SLIDE);
+  if (!blocker || !other) return false;
+  const lanes = slot.rng.shuffle([0, 1, 2] as LaneIndex[]);
+  addHazard(slot, blocker, lanes[0], 'storm');
+  addHazard(slot, other, lanes[1], 'pinch');
+  addSupply(slot, lanes[2], slot.z, 0, 'reward');
+  return true;
+}
+
+const PATTERNS = [single, pinch, hole, oncoming, overhead, stormPinch, stormPinch];
 
 /** Places one pattern, falling back to `single` when the chosen one does not fit the area or signal. */
 export function placePattern(slot: PatternSlot) {

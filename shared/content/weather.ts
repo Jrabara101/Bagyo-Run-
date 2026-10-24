@@ -19,15 +19,16 @@ export const SIGNAL_WIND_KMH: Record<SignalLevel, string> = {
  * Lightning strikes are a hazard (`lightning_strike` in hazards.ts), weighted per area in areas.ts.
  */
 export interface AreaWeather {
+  /** Gusts placed where they fit (clear of quiz questions and floods); a tight area may get fewer. */
   gusts: number;
   /** Length in meters of each flooded stretch. One that cannot fit between the gates is left out. */
   floods: readonly number[];
 }
 
 export const AREA_WEATHER: Record<AreaId, AreaWeather> = {
-  barangay: { gusts: 1, floods: [] },
-  estero: { gusts: 1, floods: [100, 80] },
-  palayan: { gusts: 2, floods: [100] },
+  barangay: { gusts: 2, floods: [] },
+  estero: { gusts: 2, floods: [100, 80] },
+  palayan: { gusts: 3, floods: [100] },
   evac: { gusts: 0, floods: [50] },
 };
 

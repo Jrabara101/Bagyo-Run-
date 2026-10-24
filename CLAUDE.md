@@ -96,4 +96,9 @@ npm run build      # production build
   `lightning_strike` hazard (change lanes). `RULES_VERSION` is 2. Renderer effects in
   `client/render/art/weather.ts`; they scale down on slow machines (`Renderer.quality`). Dev builds
   expose `window.__takbo` (the GameController) for checking the art from the console.
+- Harder course — 2026-10-24, same branch. Hazard groups at random gaps (min 12 m,
+  `MIN_HAZARD_GAP_M` in `shared/sim/course.ts`), 3→7 groups per chunk by signal, a `stormPinch`
+  pattern (lane blocker + jump/slide hazard), power lines and lightning in every area, up to 8 gusts
+  (they may blow across a flood). `RULES_VERSION` is 3. 15 harder questions added (52 in all) on
+  thunderstorms, lightning, wind, floods and RA 10821; all `reviewed: false`.
 - Next: Phase 7 — bug fixing from playtests, recording the trailer and gameplay videos.

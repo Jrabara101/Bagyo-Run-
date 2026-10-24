@@ -45,7 +45,8 @@ describe('weather plan', () => {
       const gates = gatePlan(seed);
       const wantGusts = AREAS.reduce((n, a) => n + AREA_WEATHER[a.id].gusts, 0);
       const wantFloods = AREAS.reduce((n, a) => n + AREA_WEATHER[a.id].floods.length, 0);
-      expect(plan.gusts.length).toBe(wantGusts);
+      expect(plan.gusts.length).toBeGreaterThanOrEqual(wantGusts - 2);
+      expect(plan.gusts.length).toBeLessThanOrEqual(wantGusts);
       expect(plan.floods.length).toBeGreaterThanOrEqual(wantFloods - 1);
       expect(plan.floods.length).toBeLessThanOrEqual(wantFloods);
       for (const g of gates) {

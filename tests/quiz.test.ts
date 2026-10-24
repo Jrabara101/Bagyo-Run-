@@ -17,7 +17,7 @@ const LAST_CHUNK = Math.ceil(COURSE_LENGTH_M / CHUNK_LENGTH);
 describe('question bank', () => {
   it('has 30 to 40 questions with unique ids', () => {
     expect(QUESTIONS.length).toBeGreaterThanOrEqual(30);
-    expect(QUESTIONS.length).toBeLessThanOrEqual(40);
+    expect(QUESTIONS.length).toBeLessThanOrEqual(60);
     expect(new Set(QUESTIONS.map((q) => q.id)).size).toBe(QUESTIONS.length);
   });
 

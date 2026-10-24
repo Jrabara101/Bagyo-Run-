@@ -11,6 +11,8 @@ import { GO_BAG_ITEMS } from '../content/items';
 export { CHUNK_LENGTH, COURSE_LENGTH_M };
 
 const POWER_UP_CHANCE = 0.28;
+/** Hazard groups are never closer than this, so there is always time to react to the next one. */
+export const MIN_HAZARD_GAP_M = 12;
 const POWER_UPS: PowerUpType[] = ['life_vest', 'tanod_whistle', 'bayanihan'];
 
 const GO_BAG_START_M = 150;
@@ -64,11 +66,12 @@ export function generateChunk(chunkIndex: number, seed: string): TrackChunk {
       chunk.collectibles.push({ id: `c0_supply_${i}`, type: 'supply', lane: 1, zPos: 30 + i * 12, yOffset: 0, collected: false });
     }
   } else {
+    // Hazard groups at random gaps: sometimes a breather, sometimes one right after another
     const segments = signalAt(zStart).hazardSegments;
-    const spacing = CHUNK_LENGTH / (segments + 1);
-    for (let s = 1; s <= segments; s++) {
-      const z = zStart + s * spacing + rng.nextInt(-4, 4);
-      if (z > COURSE_LENGTH_M - FINISH_CLEAR_M) break;
+    const meanGap = CHUNK_LENGTH / segments;
+    let z = zStart + rng.nextInt(MIN_HAZARD_GAP_M, MIN_HAZARD_GAP_M + 8);
+    for (let s = 1; s <= segments; s++, z += MIN_HAZARD_GAP_M + rng.next() * (meanGap - MIN_HAZARD_GAP_M) * 2) {
+      if (z > zStart + CHUNK_LENGTH - 2 || z > COURSE_LENGTH_M - FINISH_CLEAR_M) break;
       placePattern({
         rng,
         idPrefix: `c${chunkIndex}_${s}`,

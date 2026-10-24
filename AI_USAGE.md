@@ -12,6 +12,7 @@ AI assistant: Claude (Anthropic), via Claude Code. All output reviewed and commi
 | 5 Audio + UI | `dced14e` | Procedural audio engine and music loop, bilingual UI string table and Filipino translations, How to Play / Practice / Credits / Results screens, HUD restyle |
 | 6 Server | `c3b7b83` | Server restructure, schema migration, replay-based ghosts, daily challenge and storm names, offline leaderboard, server tests |
 | 7 Weather + graphics | branch `weather-and-graphics` | Wind gusts, floods and lightning strikes (rules, tests, Filipino text), storm effects in the renderer (clouds, rain, wet road, floodwater, fog, lens drops, grain), thunder and wind sounds |
+| 7 Harder course + questions | branch `weather-and-graphics` | Random hazard spacing and storm patterns, 15 more bilingual quiz questions (drafts, to be checked against the cited sources) |
 
 ## Quiz content review
 

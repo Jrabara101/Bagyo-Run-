@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Takbo! Bagyo Run app icon: a sign-painted lightning bolt over a turning typhoon at dusk,
+       with banig weave along the bottom. Drawn by hand in SVG; no image files. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1f48" />
+      <stop offset="0.62" stop-color="#4a2550" />
+      <stop offset="1" stop-color="#15141f" />
+    </linearGradient>
+    <radialGradient id="dusk" cx="0.5" cy="0.86" r="0.55">
+      <stop offset="0" stop-color="#f39a4a" stop-opacity="0.75" />
+      <stop offset="1" stop-color="#f39a4a" stop-opacity="0" />
+    </radialGradient>
+    <pattern id="banig" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="24" height="24" fill="#6e3a26" />
+      <rect width="12" height="24" fill="#c9a15a" />
+    </pattern>
+    <clipPath id="tile">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#sky)" />
+    <rect width="512" height="512" fill="url(#dusk)" />
+
+    <!-- The typhoon: three spiral arms around the eye, flattened as if seen low on the horizon -->
+    <g transform="translate(256 236) scale(1 0.82)" fill="none" stroke="#f1ebdd" stroke-linecap="round" stroke-opacity="0.22">
+      <path d="M24.0 0.0 L29.2 3.1 L34.0 7.3 L38.2 12.5 L41.6 18.6 L44.1 25.6 L45.6 33.2 L45.8 41.4 L44.9 50.0 L42.5 58.8 L38.8 67.7 L33.7 76.3 L27.2 84.5 L19.2 92.2 L10.0 99.1 L-0.4 105.0 L-12.0 109.7 L-24.6 113.2 L-38.0 115.1 L-52.1 115.4 L-66.6 113.9 L-81.4 110.7 L-96.2 105.5 L-110.8 98.5 L-124.9 89.4 L-138.3 78.5 L-150.7 65.8 L-161.9 51.2 L-171.7 35.1 L-179.8 17.4 L-186.0 -1.6 L-190.2 -21.7 L-192.1 -42.6 L-191.7 -64.3 L-188.8 -86.2 L-183.4 -108.3 L-175.4 -130.1 L-164.8 -151.5 L-151.5 -172.0 L-135.8 -191.3 L-117.7 -209.2" stroke-width="30" />
+      <path d="M24.0 0.0 L29.2 3.1 L34.0 7.3 L38.2 12.5 L41.6 18.6 L44.1 25.6 L45.6 33.2 L45.8 41.4 L44.9 50.0 L42.5 58.8 L38.8 67.7 L33.7 76.3 L27.2 84.5 L19.2 92.2 L10.0 99.1 L-0.4 105.0 L-12.0 109.7 L-24.6 113.2 L-38.0 115.1 L-52.1 115.4 L-66.6 113.9 L-81.4 110.7 L-96.2 105.5 L-110.8 98.5 L-124.9 89.4 L-138.3 78.5 L-150.7 65.8 L-161.9 51.2 L-171.7 35.1 L-179.8 17.4 L-186.0 -1.6 L-190.2 -21.7 L-192.1 -42.6 L-191.7 -64.3 L-188.8 -86.2 L-183.4 -108.3 L-175.4 -130.1 L-164.8 -151.5 L-151.5 -172.0 L-135.8 -191.3 L-117.7 -209.2" stroke-width="30" transform="rotate(120)" />
+      <path d="M24.0 0.0 L29.2 3.1 L34.0 7.3 L38.2 12.5 L41.6 18.6 L44.1 25.6 L45.6 33.2 L45.8 41.4 L44.9 50.0 L42.5 58.8 L38.8 67.7 L33.7 76.3 L27.2 84.5 L19.2 92.2 L10.0 99.1 L-0.4 105.0 L-12.0 109.7 L-24.6 113.2 L-38.0 115.1 L-52.1 115.4 L-66.6 113.9 L-81.4 110.7 L-96.2 105.5 L-110.8 98.5 L-124.9 89.4 L-138.3 78.5 L-150.7 65.8 L-161.9 51.2 L-171.7 35.1 L-179.8 17.4 L-186.0 -1.6 L-190.2 -21.7 L-192.1 -42.6 L-191.7 -64.3 L-188.8 -86.2 L-183.4 -108.3 L-175.4 -130.1 L-164.8 -151.5 L-151.5 -172.0 L-135.8 -191.3 L-117.7 -209.2" stroke-width="30" transform="rotate(240)" />
+    </g>
+    <circle cx="256" cy="236" r="22" fill="#15141f" fill-opacity="0.6" />
+
+    <!-- Wind-driven rain -->
+    <g stroke="#cfe3ff" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round">
+      <line x1="70" y1="70" x2="44" y2="128" />
+      <line x1="132" y1="40" x2="112" y2="86" />
+      <line x1="440" y1="96" x2="414" y2="154" />
+      <line x1="470" y1="250" x2="450" y2="296" />
+      <line x1="60" y1="300" x2="40" y2="346" />
+      <line x1="400" y1="330" x2="380" y2="376" />
+    </g>
+
+    <!-- Banig trim -->
+    <rect y="446" width="512" height="66" fill="url(#banig)" />
+    <rect y="446" width="512" height="10" fill="#15141f" fill-opacity="0.55" />
+
+    <!-- The bolt, sign-painted with blue and red offset shadows like the TAKBO! lockup -->
+    <g stroke-linejoin="round">
+      <polygon points="274,56 94,296 256,296 238,456 418,216 256,216" transform="translate(22 18)" fill="#2b5fb8" />
+      <polygon points="274,56 94,296 256,296 238,456 418,216 256,216" transform="translate(11 9)" fill="#d6402b" />
+      <polygon points="274,56 94,296 256,296 238,456 418,216 256,216" fill="#f2c230" stroke="#15141f" stroke-width="12" />
+      <polygon points="262,104 142,268 226,268" fill="#fff4c2" fill-opacity="0.55" />
+    </g>
+  </g>
+</svg>

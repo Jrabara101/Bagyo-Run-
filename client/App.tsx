@@ -3,6 +3,7 @@ import { useGame } from './game/useGame';
 import { PRACTICE_SEED } from './game/GameController';
 import { useInputControls } from './hooks/useInputControls';
 import { HUDOverlay } from './components/HUDOverlay';
+import { LogoText } from './components/LogoText';
 import { PauseSheet } from './components/PauseSheet';
 import { GameOverDialog, VerifyStatus } from './components/GameOverDialog';
 import { DailyGauntletCard } from './components/DailyGauntletCard';
@@ -317,9 +318,10 @@ export function App() {
     <div className="flex flex-col min-h-screen bg-[#15141f] text-[#f1ebdd]">
       <header className="fixed top-0 left-0 right-0 z-40 bg-[#15141f]/95 border-b border-[#2f2d42]">
         <div className="h-14 w-full px-3 md:px-8 flex items-center justify-between gap-3">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="takbo-logo font-display text-xl md:text-2xl leading-none">TAKBO!</span>
-            <span className="font-display text-xs md:text-sm text-white">BAGYO RUN</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <img src="/icon.svg" alt="" className="w-7 h-7 md:w-8 md:h-8 shrink-0" />
+            <LogoText text="TAKBO!" size={22} mdSize={26} />
+            <LogoText text="BAGYO RUN" size={13} mdSize={15} shadow={false} color="#ffffff" className="mt-0.5" />
             <span className="hidden lg:inline font-mono text-[10px] text-[#aaa6b8] truncate ml-2">
               {t('seed')}: {gameState.seed}
             </span>

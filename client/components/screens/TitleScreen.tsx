@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, GraduationCap, BookOpen, Calendar, Trophy, Settings, Info, Gamepad2, Smartphone } from 'lucide-react';
 import { Lang, UI } from '../../../shared/content/i18n';
+import { LogoText } from '../LogoText';
 
 interface TitleScreenProps {
   lang: Lang;
@@ -30,7 +31,9 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ lang, storm, onPlay, o
       <div className="flex-1 flex flex-col justify-center px-6 md:px-12 pt-4 pb-14 overflow-y-auto">
         <div className="flex flex-col items-start max-w-xl animate-in fade-in duration-500">
           <span className="font-body text-xs md:text-sm font-bold uppercase tracking-widest text-[#ffe2b0]">{UI.kicker[lang]}</span>
-          <h1 className="takbo-logo font-display text-6xl md:text-8xl leading-none mt-1">TAKBO!</h1>
+          <h1 className="mt-1">
+            <LogoText text="TAKBO!" size={60} mdSize={96} />
+          </h1>
           <span className="relative inline-block mt-3 px-3 pt-1.5 pb-2.5 bg-[#15141f] rounded font-display text-xl md:text-2xl text-white overflow-hidden">
             BAGYO RUN
             <span className="banig-trim absolute inset-x-0 bottom-0 h-1.5" aria-hidden="true" />
